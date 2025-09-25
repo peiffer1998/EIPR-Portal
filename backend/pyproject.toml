@@ -36,7 +36,8 @@ dev = [
     "types-passlib>=1.7.7.4",
     "types-python-jose>=3.3.4.20240106",
     "aiosqlite>=0.20.0",
-    "pre-commit>=3.7.0"
+    "pre-commit>=3.7.0",
+    "pytest-cov>=5.0.0"
 ]
 
 [tool.setuptools.packages.find]
