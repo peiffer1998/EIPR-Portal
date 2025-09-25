@@ -1,10 +1,12 @@
 """Reservation models."""
+
 from __future__ import annotations
 
 import enum
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -12,11 +14,22 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
+if TYPE_CHECKING:
+    from app.models import (
+        Account,
+        FeedingSchedule,
+        Invoice,
+        Location,
+        MedicationSchedule,
+        Pet,
+    )
+
 
 class ReservationStatus(str, enum.Enum):
     """Lifecycle states for reservations."""
 
     REQUESTED = "requested"
+    ACCEPTED = "accepted"
     CONFIRMED = "confirmed"
     CHECKED_IN = "checked_in"
     CHECKED_OUT = "checked_out"
@@ -67,8 +80,16 @@ class Reservation(TimestampMixin, Base):
     check_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     account: Mapped["Account"] = relationship("Account")
-    location: Mapped["Location"] = relationship("Location", back_populates="reservations")
+    location: Mapped["Location"] = relationship(
+        "Location", back_populates="reservations"
+    )
     pet: Mapped["Pet"] = relationship("Pet", back_populates="reservations")
-    feeding_schedules: Mapped[list["FeedingSchedule"]] = relationship("FeedingSchedule", back_populates="reservation", cascade="all, delete-orphan")
-    medication_schedules: Mapped[list["MedicationSchedule"]] = relationship("MedicationSchedule", back_populates="reservation", cascade="all, delete-orphan")
-    invoice: Mapped["Invoice | None"] = relationship("Invoice", back_populates="reservation", uselist=False)
+    feeding_schedules: Mapped[list["FeedingSchedule"]] = relationship(
+        "FeedingSchedule", back_populates="reservation", cascade="all, delete-orphan"
+    )
+    medication_schedules: Mapped[list["MedicationSchedule"]] = relationship(
+        "MedicationSchedule", back_populates="reservation", cascade="all, delete-orphan"
+    )
+    invoice: Mapped["Invoice | None"] = relationship(
+        "Invoice", back_populates="reservation", uselist=False
+    )

@@ -91,6 +91,15 @@ async def test_reservation_lifecycle(app_context: dict[str, Any]) -> None:
     assert reservation["check_out_at"] is None
     assert reservation["kennel_id"] is None
 
+    # Accept the reservation request
+    accept_resp = await client.patch(
+        f"/api/v1/reservations/{reservation_id}",
+        json={"status": "accepted"},
+        headers=headers,
+    )
+    assert accept_resp.status_code == 200
+    assert accept_resp.json()["status"] == "accepted"
+
     # Promote to confirmed
     confirm_resp = await client.patch(
         f"/api/v1/reservations/{reservation_id}",
@@ -266,6 +275,14 @@ async def test_reservation_capacity_limit(app_context: dict[str, Any]) -> None:
         "/api/v1/reservations", json=create_payload, headers=headers
     )
     assert create_resp.status_code == 201
+    reservation_id = create_resp.json()["id"]
+
+    accept_resp = await client.patch(
+        f"/api/v1/reservations/{reservation_id}",
+        json={"status": "accepted"},
+        headers=headers,
+    )
+    assert accept_resp.status_code == 200
 
     overlap_payload = {
         "pet_id": second_ids["pet_id"],
@@ -298,3 +315,15 @@ async def test_reservation_capacity_limit(app_context: dict[str, Any]) -> None:
     assert body["days"][0]["capacity"] == 1
     assert body["days"][0]["booked"] == 1
     assert body["days"][0]["available"] == 0
+
+    cancel_resp = await client.patch(
+        f"/api/v1/reservations/{reservation_id}",
+        json={"status": "canceled"},
+        headers=headers,
+    )
+    assert cancel_resp.status_code == 200
+
+    second_attempt = await client.post(
+        "/api/v1/reservations", json=overlap_payload, headers=headers
+    )
+    assert second_attempt.status_code == 201

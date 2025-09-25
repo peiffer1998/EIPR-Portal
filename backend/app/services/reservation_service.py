@@ -21,6 +21,11 @@ from app.models.reservation import Reservation, ReservationStatus, ReservationTy
 
 _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
     ReservationStatus.REQUESTED: {
+        ReservationStatus.ACCEPTED,
+        ReservationStatus.CONFIRMED,
+        ReservationStatus.CANCELED,
+    },
+    ReservationStatus.ACCEPTED: {
         ReservationStatus.CONFIRMED,
         ReservationStatus.CANCELED,
     },
@@ -35,6 +40,7 @@ _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
 
 _ACTIVE_RESERVATION_STATUSES = {
     ReservationStatus.REQUESTED,
+    ReservationStatus.ACCEPTED,
     ReservationStatus.CONFIRMED,
     ReservationStatus.CHECKED_IN,
 }
