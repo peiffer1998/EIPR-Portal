@@ -1,4 +1,5 @@
 """Pydantic schemas for reservations."""
+
 from __future__ import annotations
 
 import uuid

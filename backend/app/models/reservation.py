@@ -17,6 +17,7 @@ from app.models.mixins import TimestampMixin
 if TYPE_CHECKING:
     from app.models import (
         Account,
+        Deposit,
         FeedingSchedule,
         Invoice,
         Location,
@@ -92,4 +93,7 @@ class Reservation(TimestampMixin, Base):
     )
     invoice: Mapped["Invoice | None"] = relationship(
         "Invoice", back_populates="reservation", uselist=False
+    )
+    deposits: Mapped[list["Deposit"]] = relationship(
+        "Deposit", back_populates="reservation", cascade="all, delete-orphan"
     )

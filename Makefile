@@ -5,7 +5,7 @@ RUFF:=$(VENV)/bin/ruff
 MYPY:=$(VENV)/bin/mypy
 PYTEST:=$(PYTHON) -m pytest
 
-.PHONY: up down logs fmt lint type test seed seed-capacity
+.PHONY: up down logs fmt lint type test seed seed-capacity seed-pricing
 
 up:
 	docker compose up -d --build
@@ -32,3 +32,6 @@ seed:
 	docker compose exec api python -m scripts.seed_capacity_rules
 
 seed-capacity: seed
+
+seed-pricing:
+	docker compose exec api python -m scripts.seed_pricing

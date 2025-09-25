@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
+from typing import cast
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -47,6 +49,14 @@ _ACTIVE_RESERVATION_STATUSES = {
 
 
 _UNSET = object()
+
+
+@dataclass(slots=True)
+class DailyAvailabilityRecord:
+    date: date
+    capacity: int | None
+    booked: int
+    available: int | None
 
 
 def _coerce_utc(dt: datetime) -> datetime:
@@ -251,7 +261,7 @@ async def update_reservation(
         reservation.notes = notes
 
     if kennel_id is not _UNSET:
-        reservation.kennel_id = kennel_id
+        reservation.kennel_id = cast(uuid.UUID | None, kennel_id)
 
     await _ensure_capacity_available(
         session,
@@ -376,7 +386,7 @@ async def get_daily_availability(
     reservation_type: ReservationType,
     start_date: date,
     end_date: date,
-) -> list[dict[str, object]]:
+) -> list[DailyAvailabilityRecord]:
     """Return availability per day for the requested range."""
     if start_date > end_date:
         raise ValueError("start_date must be before or equal to end_date")
@@ -406,7 +416,7 @@ async def get_daily_availability(
     )
     reservations = [row for row in reservations_result.all()]
 
-    days: list[dict[str, object]] = []
+    days: list[DailyAvailabilityRecord] = []
     current = start_date
     while current <= end_date:
         day_start = datetime.combine(current, time.min, tzinfo=UTC)
@@ -422,12 +432,12 @@ async def get_daily_availability(
             available = max(max_active - bookings, 0)
 
         days.append(
-            {
-                "date": current,
-                "capacity": max_active,
-                "booked": bookings,
-                "available": available,
-            }
+            DailyAvailabilityRecord(
+                date=current,
+                capacity=max_active,
+                booked=bookings,
+                available=available,
+            )
         )
         current += timedelta(days=1)
 

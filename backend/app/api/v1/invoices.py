@@ -1,4 +1,5 @@
 """Invoice API endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,15 +11,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.models.invoice import InvoiceStatus
 from app.models.user import User, UserRole
-from app.schemas.invoice import InvoiceItemCreate, InvoicePaymentRequest, InvoiceRead
-from app.services import billing_service, notification_service
+from app.schemas.invoice import (
+    InvoiceApplyPromotionRequest,
+    InvoiceFromReservationRequest,
+    InvoiceItemCreate,
+    InvoicePaymentRequest,
+    InvoiceRead,
+    InvoiceTotalsRead,
+)
+from app.services import billing_service, invoice_service, notification_service
 
 router = APIRouter(prefix="/invoices")
 
 
 def _assert_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
 @router.get("", response_model=list[InvoiceRead], summary="List invoices")
@@ -45,11 +55,52 @@ async def get_invoice(
         session, account_id=current_user.account_id, invoice_id=invoice_id
     )
     if invoice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+        )
     return InvoiceRead.model_validate(invoice)
 
 
-@router.post("/{invoice_id}/items", response_model=InvoiceRead, summary="Add invoice item")
+@router.post(
+    "/from-reservation",
+    response_model=InvoiceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an invoice from a reservation",
+)
+async def create_invoice_from_reservation(
+    payload: InvoiceFromReservationRequest,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
+) -> InvoiceRead:
+    _assert_staff(current_user)
+    try:
+        invoice_id = await invoice_service.create_from_reservation(
+            session,
+            reservation_id=payload.reservation_id,
+            account_id=current_user.account_id,
+            promotion_code=payload.promotion_code,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    invoice = await billing_service.get_invoice(
+        session, account_id=current_user.account_id, invoice_id=invoice_id
+    )
+    if invoice is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invoice not persisted",
+        )
+    notification_service.notify_invoice_available(invoice, background_tasks)
+    return InvoiceRead.model_validate(invoice)
+
+
+@router.post(
+    "/{invoice_id}/items", response_model=InvoiceRead, summary="Add invoice item"
+)
 async def add_invoice_item(
     invoice_id: uuid.UUID,
     payload: InvoiceItemCreate,
@@ -62,18 +113,53 @@ async def add_invoice_item(
         session, account_id=current_user.account_id, invoice_id=invoice_id
     )
     if invoice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+        )
     try:
         updated = await billing_service.add_invoice_item(
-            session, invoice=invoice, account_id=current_user.account_id, payload=payload
+            session,
+            invoice=invoice,
+            account_id=current_user.account_id,
+            payload=payload,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     notification_service.notify_invoice_available(updated, background_tasks)
     return InvoiceRead.model_validate(updated)
 
 
-@router.post("/{invoice_id}/pay", response_model=InvoiceRead, summary="Process payment (mock)")
+@router.post(
+    "/{invoice_id}/apply-promo",
+    response_model=InvoiceTotalsRead,
+    summary="Apply promotion to invoice",
+)
+async def apply_invoice_promotion(
+    invoice_id: uuid.UUID,
+    payload: InvoiceApplyPromotionRequest,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> InvoiceTotalsRead:
+    _assert_staff(current_user)
+    try:
+        totals = await invoice_service.compute_totals(
+            session,
+            invoice_id=invoice_id,
+            account_id=current_user.account_id,
+            promotion_code=payload.code,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    return InvoiceTotalsRead.model_validate(totals)
+
+
+@router.post(
+    "/{invoice_id}/pay", response_model=InvoiceRead, summary="Process payment (mock)"
+)
 async def process_payment(
     invoice_id: uuid.UUID,
     payload: InvoicePaymentRequest,
@@ -86,7 +172,9 @@ async def process_payment(
         session, account_id=current_user.account_id, invoice_id=invoice_id
     )
     if invoice is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+        )
     try:
         updated = await billing_service.process_payment(
             session,
@@ -95,6 +183,8 @@ async def process_payment(
             amount=payload.amount,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     notification_service.notify_payment_receipt(updated, background_tasks)
     return InvoiceRead.model_validate(updated)
