@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Environments
+.env
+.venv/
+venv/
+.env.*
+
+# IDE/project files
+.idea/
+.vscode/
+.DS_Store
+
+# Bytecode
+backend/*.sqlite3
+backend/.mypy_cache/
+backend/.pytest_cache/
+backend/.ruff_cache/
+
+# Build artifacts
+build/
+dist/
+
