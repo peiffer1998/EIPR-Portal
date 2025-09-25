@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     stripe_terminal_location: str | None = Field(
         default=None, alias="STRIPE_TERMINAL_LOCATION"
     )
+    payments_webhook_verify: bool = Field(default=True, alias="PAYMENTS_WEBHOOK_VERIFY")
 
     twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
