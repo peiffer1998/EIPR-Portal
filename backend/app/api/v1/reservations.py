@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.models.user import User, UserRole
 from app.schemas.reservation import ReservationCreate, ReservationRead, ReservationUpdate
+from app.schemas.scheduling import AvailabilityRequest, AvailabilityResponse
 from app.services import reservation_service
 
 router = APIRouter()
@@ -126,3 +127,32 @@ async def delete_reservation(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return None
+
+@router.get(
+    "/availability/daily",
+    response_model=AvailabilityResponse,
+    summary="Daily availability for a location",
+)
+async def get_daily_availability(
+    params: Annotated[AvailabilityRequest, Depends()],
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> AvailabilityResponse:
+    _assert_staff_authority(current_user)
+    try:
+        days = await reservation_service.get_daily_availability(
+            session,
+            account_id=current_user.account_id,
+            location_id=params.location_id,
+            reservation_type=params.reservation_type,
+            start_date=params.start_date,
+            end_date=params.end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return AvailabilityResponse(
+        location_id=params.location_id,
+        reservation_type=params.reservation_type,
+        days=days,
+    )

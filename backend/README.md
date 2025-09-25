@@ -24,6 +24,28 @@ pip install -e .[dev]
 pytest
 ```
 
+## Database Migrations
+
+Run Alembic migrations whenever the schema changes:
+
+```bash
+alembic upgrade head
+```
+
+To create a new revision:
+
+```bash
+alembic revision --autogenerate -m "describe change"
+```
+
+## Seeding Capacity Defaults
+
+Seed default capacity rules for all locations (idempotent):
+
+```bash
+python -m scripts.seed_capacity_rules
+```
+
 ## Project Layout
 
 - `app/` – application package (API routers, services, models, schemas).

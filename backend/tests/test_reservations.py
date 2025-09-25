@@ -238,3 +238,21 @@ async def test_reservation_capacity_limit(app_context: dict[str, object]) -> Non
     overlap_resp = await client.post("/api/v1/reservations", json=overlap_payload, headers=headers)
     assert overlap_resp.status_code == 400
     assert "capacity" in overlap_resp.json()["detail"].lower()
+
+    availability_resp = await client.get(
+        "/api/v1/reservations/availability/daily",
+        params={
+            "location_id": location_id,
+            "reservation_type": "boarding",
+            "start_date": start_at.date().isoformat(),
+            "end_date": end_at.date().isoformat(),
+        },
+        headers=headers,
+    )
+    assert availability_resp.status_code == 200
+    body = availability_resp.json()
+    assert body["location_id"] == location_id
+    assert body["reservation_type"] == "boarding"
+    assert body["days"][0]["capacity"] == 1
+    assert body["days"][0]["booked"] == 1
+    assert body["days"][0]["available"] == 0

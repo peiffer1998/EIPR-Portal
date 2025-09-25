@@ -1,6 +1,7 @@
 """Service layer exports."""
-from app.services import (
+from . import (
     auth_service,
+    capacity_service,
     owner_service,
     pet_service,
     reservation_service,
@@ -9,6 +10,7 @@ from app.services import (
 
 __all__ = [
     "auth_service",
+    "capacity_service",
     "owner_service",
     "pet_service",
     "reservation_service",

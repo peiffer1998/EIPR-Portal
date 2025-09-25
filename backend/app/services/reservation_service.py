@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -34,6 +34,12 @@ _ACTIVE_RESERVATION_STATUSES = {
     ReservationStatus.CONFIRMED,
     ReservationStatus.CHECKED_IN,
 }
+
+
+def _coerce_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _base_reservation_query(account_id: uuid.UUID):
@@ -274,3 +280,70 @@ async def _ensure_capacity_available(
     count_active = (await session.execute(overlap_stmt)).scalar_one()
     if count_active >= max_active:
         raise ValueError("Capacity limit reached for the selected slot")
+
+
+async def get_daily_availability(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    location_id: uuid.UUID,
+    reservation_type: ReservationType,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, object]]:
+    """Return availability per day for the requested range."""
+    if start_date > end_date:
+        raise ValueError("start_date must be before or equal to end_date")
+
+    await _validate_location(session, account_id=account_id, location_id=location_id)
+
+    rule_result = await session.execute(
+        select(LocationCapacityRule.max_active).where(
+            LocationCapacityRule.location_id == location_id,
+            LocationCapacityRule.reservation_type == reservation_type,
+        )
+    )
+    max_active = rule_result.scalar_one_or_none()
+
+    range_start = datetime.combine(start_date, time.min, tzinfo=UTC)
+    range_end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=UTC)
+
+    reservations_result = await session.execute(
+        select(Reservation.start_at, Reservation.end_at, Reservation.status)
+        .where(
+            Reservation.account_id == account_id,
+            Reservation.location_id == location_id,
+            Reservation.reservation_type == reservation_type,
+            Reservation.status.in_(_ACTIVE_RESERVATION_STATUSES),
+            Reservation.end_at > range_start,
+            Reservation.start_at < range_end,
+        )
+    )
+    reservations = [row for row in reservations_result.all()]
+
+    days: list[dict[str, object]] = []
+    current = start_date
+    while current <= end_date:
+        day_start = datetime.combine(current, time.min, tzinfo=UTC)
+        day_end = day_start + timedelta(days=1)
+        bookings = 0
+        for start_at, end_at, _ in reservations:
+            start_dt = _coerce_utc(start_at)
+            end_dt = _coerce_utc(end_at)
+            if end_dt > day_start and start_dt < day_end:
+                bookings += 1
+        available = None
+        if max_active is not None:
+            available = max(max_active - bookings, 0)
+
+        days.append(
+            {
+                "date": current,
+                "capacity": max_active,
+                "booked": bookings,
+                "available": available,
+            }
+        )
+        current += timedelta(days=1)
+
+    return days
