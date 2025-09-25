@@ -164,9 +164,7 @@ async def create_reservation(
     except IntegrityError:
         await session.rollback()
         raise
-    await session.refresh(reservation)
-    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
-    return reservation
+    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
 
 
 def _validate_status_transition(current: ReservationStatus, target: ReservationStatus) -> None:
@@ -239,9 +237,7 @@ async def update_reservation(
 
     session.add(reservation)
     await session.commit()
-    await session.refresh(reservation)
-    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
-    return reservation
+    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
 
 
 async def delete_reservation(
@@ -273,9 +269,7 @@ async def check_in_reservation(
     if kennel_id is not None:
         reservation.kennel_id = kennel_id
     await session.commit()
-    await session.refresh(reservation)
-    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
-    return reservation
+    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
 
 
 async def check_out_reservation(
@@ -291,9 +285,7 @@ async def check_out_reservation(
     reservation.status = ReservationStatus.CHECKED_OUT
     reservation.check_out_at = _coerce_utc(check_out_at)
     await session.commit()
-    await session.refresh(reservation)
-    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
-    return reservation
+    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
 
 
 async def _ensure_capacity_available(

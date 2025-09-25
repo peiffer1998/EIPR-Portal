@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
+from app.models.owner_profile import OwnerProfile
+from app.models.pet import Pet
 from app.models.reservation import Reservation
 from app.schemas.invoice import InvoiceItemCreate
 
@@ -53,7 +55,14 @@ async def get_invoice(
     stmt = (
         select(Invoice)
         .where(Invoice.id == invoice_id, Invoice.account_id == account_id)
-        .options(selectinload(Invoice.items))
+        .options(
+            selectinload(Invoice.items),
+            selectinload(Invoice.reservation)
+            .selectinload(Reservation.pet)
+            .selectinload(Pet.owner)
+            .selectinload(OwnerProfile.user),
+            selectinload(Invoice.reservation).selectinload(Reservation.location),
+        )
     )
     result = await session.execute(stmt)
     return result.scalars().unique().one_or_none()
@@ -85,8 +94,7 @@ async def generate_invoice_for_reservation(
 
     session.add(invoice)
     await session.commit()
-    await session.refresh(invoice, attribute_names=["items"])
-    return invoice
+    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
 
 
 async def add_invoice_item(
@@ -103,8 +111,7 @@ async def add_invoice_item(
     )
     await _recalculate_total(session, invoice)
     await session.commit()
-    await session.refresh(invoice, attribute_names=["items"])
-    return invoice
+    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
 
 
 async def mark_invoice_paid(
@@ -119,8 +126,7 @@ async def mark_invoice_paid(
     invoice.status = InvoiceStatus.PAID
     invoice.paid_at = (paid_at or datetime.now(UTC))
     await session.commit()
-    await session.refresh(invoice, attribute_names=["items"])
-    return invoice
+    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
 
 
 async def mark_invoice_unpaid(
@@ -134,8 +140,7 @@ async def mark_invoice_unpaid(
     invoice.status = InvoiceStatus.PENDING
     invoice.paid_at = None
     await session.commit()
-    await session.refresh(invoice, attribute_names=["items"])
-    return invoice
+    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
 
 
 async def process_payment(
@@ -149,7 +154,8 @@ async def process_payment(
         raise ValueError("Invoice does not belong to the provided account")
     if amount < invoice.total_amount:
         raise ValueError("Payment amount is less than total due")
-    return await mark_invoice_paid(session, invoice=invoice, account_id=account_id, paid_at=datetime.now(UTC))
+    paid_invoice = await mark_invoice_paid(session, invoice=invoice, account_id=account_id, paid_at=datetime.now(UTC))
+    return await get_invoice(session, account_id=account_id, invoice_id=paid_invoice.id)
 
 
 async def list_outstanding_invoices(

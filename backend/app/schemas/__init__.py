@@ -25,6 +25,7 @@ from app.schemas.invoice import (
     InvoiceRead,
 )
 from app.schemas.location import LocationCreate, LocationRead, LocationUpdate
+from app.schemas.reporting import OccupancyEntry, RevenueEntry, RevenueReport
 from app.schemas.medication import (
     MedicationScheduleCreate,
     MedicationScheduleRead,
@@ -62,6 +63,9 @@ __all__ = [
     "InvoicePaymentRequest",
     "InvoiceRead",
     "LocationCreate",
+    "OccupancyEntry",
+    "RevenueEntry",
+    "RevenueReport",
     "LocationRead",
     "LocationUpdate",
     "MedicationScheduleCreate",

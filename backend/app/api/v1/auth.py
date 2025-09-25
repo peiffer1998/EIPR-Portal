@@ -1,7 +1,7 @@
 """Authentication endpoints."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.schemas.auth import (
     Token,
 )
 from app.schemas.owner import OwnerRead
-from app.services import owner_service, password_reset_service, user_service
+from app.services import notification_service, owner_service, password_reset_service, user_service
 from app.services.auth_service import authenticate_user, create_access_token_for_user
 
 router = APIRouter()
@@ -44,6 +44,7 @@ async def login_for_access_token(
 async def register_owner(
     payload: RegistrationRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    background_tasks: BackgroundTasks,
 ) -> RegistrationResponse:
     account_result = await session.execute(
         select(Account).where(Account.slug == payload.account_slug.lower())
@@ -69,6 +70,19 @@ async def register_owner(
         is_primary_contact=False,
     )
     token_value = await create_access_token_for_user(owner.user)
+    subject, body = notification_service.build_welcome_email(first_name=owner.user.first_name)
+    notification_service.schedule_email(
+        background_tasks,
+        recipients=[owner.user.email],
+        subject=subject,
+        body=body,
+    )
+    if owner.user.phone_number:
+        notification_service.schedule_sms(
+            background_tasks,
+            phone_numbers=[owner.user.phone_number],
+            message="Thanks for registering with Eastern Iowa Pet Resort!",
+        )
     return RegistrationResponse(token=Token(access_token=token_value), owner=OwnerRead.model_validate(owner))
 
 
@@ -76,11 +90,19 @@ async def register_owner(
 async def password_reset_request(
     payload: PasswordResetRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    background_tasks: BackgroundTasks,
 ) -> PasswordResetTokenResponse:
     token_info = await password_reset_service.create_reset_token(session, email=payload.email)
     if token_info is None:
         return PasswordResetTokenResponse()
     raw_token, expires_at = token_info
+    subject, body = notification_service.build_password_reset_email(token=raw_token)
+    notification_service.schedule_email(
+        background_tasks,
+        recipients=[payload.email],
+        subject=subject,
+        body=body,
+    )
     return PasswordResetTokenResponse(reset_token=raw_token, expires_at=expires_at)
 
 

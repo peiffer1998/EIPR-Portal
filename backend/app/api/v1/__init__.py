@@ -1,7 +1,7 @@
 """Versioned API router."""
 from fastapi import APIRouter
 
-from . import accounts, auth, capacity, feeding, health, invoices, locations, medication, owners, pets, reservations, users
+from . import accounts, auth, capacity, feeding, health, invoices, locations, medication, owners, pets, reports, reservations, users
 
 router = APIRouter()
 router.include_router(health.router, prefix="/health", tags=["health"])
@@ -15,6 +15,7 @@ router.include_router(reservations.router, prefix="/reservations", tags=["reserv
 router.include_router(feeding.router, tags=["feeding"])
 router.include_router(medication.router, tags=["medication"])
 router.include_router(invoices.router, tags=["invoices"])
+router.include_router(reports.router, tags=["reports"])
 router.include_router(capacity.router, tags=["capacity"])
 
 __all__ = ["router"]

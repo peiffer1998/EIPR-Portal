@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +19,10 @@ from app.schemas.reservation import (
     ReservationUpdate,
 )
 from app.schemas.scheduling import AvailabilityRequest, AvailabilityResponse
-from app.services import billing_service, reservation_service
+from app.services import billing_service, notification_service, reservation_service
 
 router = APIRouter()
+
 
 
 def _assert_staff_authority(user: User) -> None:
@@ -51,6 +52,7 @@ async def create_reservation(
     payload: ReservationCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> ReservationRead:
     _assert_staff_authority(current_user)
     try:
@@ -63,6 +65,7 @@ async def create_reservation(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to create reservation") from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_booking_confirmation(reservation, background_tasks)
     return ReservationRead.model_validate(reservation)
 
 
@@ -121,6 +124,7 @@ async def check_in_reservation(
     reservation_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
     payload: ReservationCheckInRequest | None = None,
 ) -> ReservationRead:
     _assert_staff_authority(current_user)
@@ -143,6 +147,7 @@ async def check_in_reservation(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_check_in(updated, background_tasks)
     return ReservationRead.model_validate(updated)
 
 
@@ -188,6 +193,7 @@ async def generate_invoice(
     reservation_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> InvoiceRead:
     _assert_staff_authority(current_user)
     try:
@@ -198,6 +204,7 @@ async def generate_invoice(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_invoice_available(invoice, background_tasks)
     return InvoiceRead.model_validate(invoice)
 
 

@@ -5,7 +5,7 @@ from decimal import Decimal
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.models.reservation import ReservationStatus
 from app.models.user import User, UserRole
 from app.schemas.owner import OwnerCreate, OwnerRead, OwnerUpdate, OwnerReservationRequest
 from app.schemas.reservation import ReservationRead
-from app.services import owner_service, pet_service, reservation_service
+from app.services import notification_service, owner_service, pet_service, reservation_service
 
 router = APIRouter()
 
@@ -120,6 +120,7 @@ async def owner_create_reservation(
     payload: OwnerReservationRequest,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> ReservationRead:
     account_id = current_user.account_id
     owner = None
@@ -160,4 +161,5 @@ async def owner_create_reservation(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_booking_confirmation(reservation, background_tasks)
     return ReservationRead.model_validate(reservation)

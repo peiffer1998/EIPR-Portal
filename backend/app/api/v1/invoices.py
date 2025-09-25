@@ -4,14 +4,14 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.models.invoice import InvoiceStatus
 from app.models.user import User, UserRole
 from app.schemas.invoice import InvoiceItemCreate, InvoicePaymentRequest, InvoiceRead
-from app.services import billing_service
+from app.services import billing_service, notification_service
 
 router = APIRouter(prefix="/invoices")
 
@@ -55,6 +55,7 @@ async def add_invoice_item(
     payload: InvoiceItemCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> InvoiceRead:
     _assert_staff(current_user)
     invoice = await billing_service.get_invoice(
@@ -68,6 +69,7 @@ async def add_invoice_item(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_invoice_available(updated, background_tasks)
     return InvoiceRead.model_validate(updated)
 
 
@@ -77,6 +79,7 @@ async def process_payment(
     payload: InvoicePaymentRequest,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
 ) -> InvoiceRead:
     _assert_staff(current_user)
     invoice = await billing_service.get_invoice(
@@ -93,4 +96,5 @@ async def process_payment(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    notification_service.notify_payment_receipt(updated, background_tasks)
     return InvoiceRead.model_validate(updated)
