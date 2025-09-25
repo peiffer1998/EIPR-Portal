@@ -1,6 +1,8 @@
 """Location administration tests."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 
 import pytest
@@ -23,7 +25,9 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-async def test_location_crud_superadmin(app_context: dict[str, object], db_url: str) -> None:
+async def test_location_crud_superadmin(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_id = app_context["account_id"]
 
@@ -51,7 +55,9 @@ async def test_location_crud_superadmin(app_context: dict[str, object], db_url: 
         "timezone": "UTC",
         "city": "Cedar Rapids",
     }
-    create_resp = await client.post("/api/v1/locations", json=create_payload, headers=headers)
+    create_resp = await client.post(
+        "/api/v1/locations", json=create_payload, headers=headers
+    )
     assert create_resp.status_code == 201
     location_id = create_resp.json()["id"]
 
@@ -70,14 +76,16 @@ async def test_location_crud_superadmin(app_context: dict[str, object], db_url: 
     assert update_resp.status_code == 200
     assert update_resp.json()["name"] == "Downtown Plus"
 
-    delete_resp = await client.delete(f"/api/v1/locations/{location_id}", headers=headers)
+    delete_resp = await client.delete(
+        f"/api/v1/locations/{location_id}", headers=headers
+    )
     assert delete_resp.status_code == 204
 
     get_deleted = await client.get(f"/api/v1/locations/{location_id}", headers=headers)
     assert get_deleted.status_code == 404
 
 
-async def test_location_admin_scope(app_context: dict[str, object], db_url: str) -> None:
+async def test_location_admin_scope(app_context: dict[str, Any], db_url: str) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_id = app_context["account_id"]
 
@@ -95,7 +103,9 @@ async def test_location_admin_scope(app_context: dict[str, object], db_url: str)
         )
         session.add(admin_user)
 
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 
@@ -125,13 +135,17 @@ async def test_location_admin_scope(app_context: dict[str, object], db_url: str)
     )
     assert create_other.status_code == 400
 
-    get_other = await client.get(f"/api/v1/locations/{other_location.id}", headers=headers)
+    get_other = await client.get(
+        f"/api/v1/locations/{other_location.id}", headers=headers
+    )
     assert get_other.status_code == 404
 
 
-async def test_location_manager_forbidden(app_context: dict[str, object]) -> None:
+async def test_location_manager_forbidden(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
-    token = await _authenticate(client, app_context["manager_email"], app_context["manager_password"])  # type: ignore[arg-type]
+    token = await _authenticate(
+        client, app_context["manager_email"], app_context["manager_password"]
+    )  # type: ignore[arg-type]
     headers = {"Authorization": f"Bearer {token}"}
 
     list_resp = await client.get("/api/v1/locations", headers=headers)

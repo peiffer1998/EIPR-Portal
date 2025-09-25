@@ -1,6 +1,8 @@
 """Reservation API integration tests."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -37,7 +39,9 @@ async def _create_owner_and_pet(
         "email": f"{email_prefix}.guardian@example.com",
         "password": "StrongPass1!",
     }
-    owner_resp = await client.post("/api/v1/owners", json=owner_payload, headers=headers)
+    owner_resp = await client.post(
+        "/api/v1/owners", json=owner_payload, headers=headers
+    )
     assert owner_resp.status_code == 201
     owner_id = owner_resp.json()["id"]
 
@@ -53,7 +57,7 @@ async def _create_owner_and_pet(
     return {"owner_id": owner_id, "pet_id": pet_id}
 
 
-async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
+async def test_reservation_lifecycle(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -76,7 +80,9 @@ async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
         "base_rate": "150.00",
         "notes": "Owner requests webcam access",
     }
-    create_resp = await client.post("/api/v1/reservations", json=create_payload, headers=headers)
+    create_resp = await client.post(
+        "/api/v1/reservations", json=create_payload, headers=headers
+    )
     assert create_resp.status_code == 201
     reservation = create_resp.json()
     reservation_id = reservation["id"]
@@ -136,14 +142,20 @@ async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
     assert list_resp.status_code == 200
     assert any(item["id"] == reservation_id for item in list_resp.json())
 
-    delete_resp = await client.delete(f"/api/v1/reservations/{reservation_id}", headers=headers)
+    delete_resp = await client.delete(
+        f"/api/v1/reservations/{reservation_id}", headers=headers
+    )
     assert delete_resp.status_code == 204
 
-    get_deleted = await client.get(f"/api/v1/reservations/{reservation_id}", headers=headers)
+    get_deleted = await client.get(
+        f"/api/v1/reservations/{reservation_id}", headers=headers
+    )
     assert get_deleted.status_code == 404
 
 
-async def test_reservation_account_isolation(app_context: dict[str, object], db_url: str) -> None:
+async def test_reservation_account_isolation(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -174,7 +186,9 @@ async def test_reservation_account_isolation(app_context: dict[str, object], db_
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
-        other_account = Account(name="South Location", slug=f"south-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="South Location", slug=f"south-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 
@@ -210,14 +224,18 @@ async def test_reservation_account_isolation(app_context: dict[str, object], db_
         session.add(stray_owner)
         await session.commit()
 
-    other_token = await _authenticate(client, "south.manager@example.com", "SecureSouth1!")
+    other_token = await _authenticate(
+        client, "south.manager@example.com", "SecureSouth1!"
+    )
     other_headers = {"Authorization": f"Bearer {other_token}"}
 
-    forbidden_fetch = await client.get(f"/api/v1/reservations/{reservation_id}", headers=other_headers)
+    forbidden_fetch = await client.get(
+        f"/api/v1/reservations/{reservation_id}", headers=other_headers
+    )
     assert forbidden_fetch.status_code == 404
 
 
-async def test_reservation_capacity_limit(app_context: dict[str, object]) -> None:
+async def test_reservation_capacity_limit(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -226,8 +244,12 @@ async def test_reservation_capacity_limit(app_context: dict[str, object]) -> Non
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
 
-    first_ids = await _create_owner_and_pet(client, headers, location_id, email_prefix="alex")
-    second_ids = await _create_owner_and_pet(client, headers, location_id, email_prefix="blair")
+    first_ids = await _create_owner_and_pet(
+        client, headers, location_id, email_prefix="alex"
+    )
+    second_ids = await _create_owner_and_pet(
+        client, headers, location_id, email_prefix="blair"
+    )
 
     start_at = datetime.now(timezone.utc) + timedelta(days=1)
     end_at = start_at + timedelta(days=1)
@@ -240,7 +262,9 @@ async def test_reservation_capacity_limit(app_context: dict[str, object]) -> Non
         "end_at": end_at.isoformat(),
         "base_rate": "120.00",
     }
-    create_resp = await client.post("/api/v1/reservations", json=create_payload, headers=headers)
+    create_resp = await client.post(
+        "/api/v1/reservations", json=create_payload, headers=headers
+    )
     assert create_resp.status_code == 201
 
     overlap_payload = {
@@ -251,7 +275,9 @@ async def test_reservation_capacity_limit(app_context: dict[str, object]) -> Non
         "end_at": end_at.isoformat(),
         "base_rate": "120.00",
     }
-    overlap_resp = await client.post("/api/v1/reservations", json=overlap_payload, headers=headers)
+    overlap_resp = await client.post(
+        "/api/v1/reservations", json=overlap_payload, headers=headers
+    )
     assert overlap_resp.status_code == 400
     assert "capacity" in overlap_resp.json()["detail"].lower()
 

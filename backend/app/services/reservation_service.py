@@ -1,4 +1,5 @@
 """Reservation management service helpers."""
+
 from __future__ import annotations
 
 import uuid
@@ -17,10 +18,12 @@ from app.models.location_capacity import LocationCapacityRule
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet
 from app.models.reservation import Reservation, ReservationStatus, ReservationType
-from app.models.user import User
 
 _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
-    ReservationStatus.REQUESTED: {ReservationStatus.CONFIRMED, ReservationStatus.CANCELED},
+    ReservationStatus.REQUESTED: {
+        ReservationStatus.CONFIRMED,
+        ReservationStatus.CANCELED,
+    },
     ReservationStatus.CONFIRMED: {
         ReservationStatus.CHECKED_IN,
         ReservationStatus.CANCELED,
@@ -84,6 +87,20 @@ async def get_reservation(
     stmt = _base_reservation_query(account_id).where(Reservation.id == reservation_id)
     result = await session.execute(stmt)
     return result.scalars().unique().one_or_none()
+
+
+async def _get_required_reservation(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    reservation_id: uuid.UUID,
+) -> Reservation:
+    reservation = await get_reservation(
+        session, account_id=account_id, reservation_id=reservation_id
+    )
+    if reservation is None:
+        raise RuntimeError("Reservation was not persisted as expected")
+    return reservation
 
 
 async def _validate_pet(
@@ -164,10 +181,14 @@ async def create_reservation(
     except IntegrityError:
         await session.rollback()
         raise
-    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
+    return await _get_required_reservation(
+        session, account_id=account_id, reservation_id=reservation.id
+    )
 
 
-def _validate_status_transition(current: ReservationStatus, target: ReservationStatus) -> None:
+def _validate_status_transition(
+    current: ReservationStatus, target: ReservationStatus
+) -> None:
     if target == current:
         return
     allowed = _ALLOWED_STATUS_TRANSITIONS.get(current, set())
@@ -198,7 +219,9 @@ async def update_reservation(
         reservation.pet_id = pet_id
 
     if location_id is not None and location_id != reservation.location_id:
-        await _validate_location(session, account_id=account_id, location_id=location_id)
+        await _validate_location(
+            session, account_id=account_id, location_id=location_id
+        )
         reservation.location_id = location_id
 
     if reservation_type is not None:
@@ -237,7 +260,9 @@ async def update_reservation(
 
     session.add(reservation)
     await session.commit()
-    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
+    return await _get_required_reservation(
+        session, account_id=account_id, reservation_id=reservation.id
+    )
 
 
 async def delete_reservation(
@@ -269,7 +294,9 @@ async def check_in_reservation(
     if kennel_id is not None:
         reservation.kennel_id = kennel_id
     await session.commit()
-    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
+    return await _get_required_reservation(
+        session, account_id=account_id, reservation_id=reservation.id
+    )
 
 
 async def check_out_reservation(
@@ -285,7 +312,9 @@ async def check_out_reservation(
     reservation.status = ReservationStatus.CHECKED_OUT
     reservation.check_out_at = _coerce_utc(check_out_at)
     await session.commit()
-    return await get_reservation(session, account_id=account_id, reservation_id=reservation.id)
+    return await _get_required_reservation(
+        session, account_id=account_id, reservation_id=reservation.id
+    )
 
 
 async def _ensure_capacity_available(
@@ -313,13 +342,17 @@ async def _ensure_capacity_available(
     if max_active is None:
         return
 
-    overlap_stmt = select(func.count()).select_from(Reservation).where(
-        Reservation.account_id == account_id,
-        Reservation.location_id == location_id,
-        Reservation.reservation_type == reservation_type,
-        Reservation.status.in_(_ACTIVE_RESERVATION_STATUSES),
-        Reservation.end_at > start_at,
-        Reservation.start_at < end_at,
+    overlap_stmt = (
+        select(func.count())
+        .select_from(Reservation)
+        .where(
+            Reservation.account_id == account_id,
+            Reservation.location_id == location_id,
+            Reservation.reservation_type == reservation_type,
+            Reservation.status.in_(_ACTIVE_RESERVATION_STATUSES),
+            Reservation.end_at > start_at,
+            Reservation.start_at < end_at,
+        )
     )
     if exclude_reservation_id is not None:
         overlap_stmt = overlap_stmt.where(Reservation.id != exclude_reservation_id)
@@ -356,8 +389,7 @@ async def get_daily_availability(
     range_end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=UTC)
 
     reservations_result = await session.execute(
-        select(Reservation.start_at, Reservation.end_at, Reservation.status)
-        .where(
+        select(Reservation.start_at, Reservation.end_at, Reservation.status).where(
             Reservation.account_id == account_id,
             Reservation.location_id == location_id,
             Reservation.reservation_type == reservation_type,

@@ -1,7 +1,7 @@
-
 # Billing API tests.
 from __future__ import annotations
 
+from typing import Any
 from datetime import datetime, timedelta, timezone
 import uuid
 
@@ -75,7 +75,7 @@ async def _create_owner_pet_reservation(
     return reservation_id, pet_id
 
 
-async def test_invoice_lifecycle(app_context: dict[str, object]) -> None:
+async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -84,7 +84,9 @@ async def test_invoice_lifecycle(app_context: dict[str, object]) -> None:
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
 
-    reservation_id, _ = await _create_owner_pet_reservation(client, headers, location_id)
+    reservation_id, _ = await _create_owner_pet_reservation(
+        client, headers, location_id
+    )
 
     invoice_resp = await client.post(
         f"/api/v1/reservations/{reservation_id}/invoice",
@@ -129,7 +131,9 @@ async def test_invoice_lifecycle(app_context: dict[str, object]) -> None:
     assert duplicate_resp.status_code == 400
 
 
-async def test_invoice_account_isolation(app_context: dict[str, object], db_url: str) -> None:
+async def test_invoice_account_isolation(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -137,7 +141,9 @@ async def test_invoice_account_isolation(app_context: dict[str, object], db_url:
 
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
-    reservation_id, _ = await _create_owner_pet_reservation(client, headers, location_id)
+    reservation_id, _ = await _create_owner_pet_reservation(
+        client, headers, location_id
+    )
 
     invoice_resp = await client.post(
         f"/api/v1/reservations/{reservation_id}/invoice",
@@ -148,7 +154,9 @@ async def test_invoice_account_isolation(app_context: dict[str, object], db_url:
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 
@@ -173,7 +181,9 @@ async def test_invoice_account_isolation(app_context: dict[str, object], db_url:
         session.add(other_manager)
         await session.commit()
 
-    other_token = await _authenticate(client, "other.billing@example.com", other_password)
+    other_token = await _authenticate(
+        client, "other.billing@example.com", other_password
+    )
     other_headers = {"Authorization": f"Bearer {other_token}"}
 
     forbidden_resp = await client.get(

@@ -1,6 +1,8 @@
 """Service layer exports."""
+
 from . import (
     account_service,
+    audit_service,
     auth_service,
     billing_service,
     capacity_service,
@@ -23,6 +25,7 @@ from . import (
 
 __all__ = [
     "account_service",
+    "audit_service",
     "auth_service",
     "billing_service",
     "capacity_service",

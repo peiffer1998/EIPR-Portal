@@ -14,9 +14,8 @@ repos:
     rev: v1.10.0
     hooks:
       - id: mypy
+        entry: bash -lc "cd backend && mypy --ignore-missing-imports app tests"
+        pass_filenames: false
         additional_dependencies:
           - types-passlib
           - types-python-jose
-        args:
-          - "backend/app"
-          - "backend/tests"

@@ -1,11 +1,27 @@
 """Self-service authentication tests."""
+
 from __future__ import annotations
 
+from typing import Any
 from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from app.db.session import get_sessionmaker
+from app.models.audit_event import AuditEvent
 
 pytestmark = pytest.mark.asyncio
+
+
+async def _fetch_events(db_url: str, event_type: str) -> list[AuditEvent]:
+    sessionmaker = get_sessionmaker(db_url)
+    async with sessionmaker() as session:
+        result = await session.execute(
+            select(AuditEvent).where(AuditEvent.event_type == event_type)
+        )
+        return result.scalars().all()
 
 
 async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
@@ -18,7 +34,9 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-async def test_pet_parent_registration_and_login(app_context: dict[str, object]) -> None:
+async def test_pet_parent_registration_and_login(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_slug = app_context["account_slug"]
 
@@ -43,8 +61,20 @@ async def test_pet_parent_registration_and_login(app_context: dict[str, object])
     assert login_resp.status_code == 200
     assert login_resp.json()["access_token"]
 
+    register_events = await _fetch_events(db_url, "auth.register.pet_parent")
+    assert any(
+        evt.payload and evt.payload.get("email") == payload["email"]
+        for evt in register_events
+    )
 
-async def test_password_reset_flow(app_context: dict[str, object]) -> None:
+    login_events = await _fetch_events(db_url, "auth.login")
+    assert any(
+        evt.payload and evt.payload.get("email") == payload["email"]
+        for evt in login_events
+    )
+
+
+async def test_password_reset_flow(app_context: dict[str, Any], db_url: str) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_slug = app_context["account_slug"]
     email = "reset.me@example.com"
@@ -75,6 +105,16 @@ async def test_password_reset_flow(app_context: dict[str, object]) -> None:
     )
     assert confirm_resp.status_code == 204
 
+    request_events = await _fetch_events(db_url, "auth.password_reset.requested")
+    assert any(
+        evt.payload and evt.payload.get("email") == email for evt in request_events
+    )
+
+    completed_events = await _fetch_events(db_url, "auth.password_reset.completed")
+    assert any(
+        evt.payload and evt.payload.get("email") == email for evt in completed_events
+    )
+
     login_resp = await client.post(
         "/api/v1/auth/token",
         data={"username": email, "password": "NewPass2!"},
@@ -82,8 +122,13 @@ async def test_password_reset_flow(app_context: dict[str, object]) -> None:
     )
     assert login_resp.status_code == 200
 
+    login_events = await _fetch_events(db_url, "auth.login")
+    assert any(
+        evt.payload and evt.payload.get("email") == email for evt in login_events
+    )
 
-async def test_owner_self_service_reservation(app_context: dict[str, object]) -> None:
+
+async def test_owner_self_service_reservation(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_slug = app_context["account_slug"]
     manager_email = app_context["manager_email"]

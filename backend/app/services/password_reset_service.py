@@ -1,9 +1,9 @@
 """Password reset services."""
+
 from __future__ import annotations
 
 import hashlib
 import secrets
-import uuid
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, select
@@ -17,16 +17,23 @@ from app.services import user_service
 
 _RESET_TOKEN_TTL = timedelta(hours=1)
 
+
 def _hash_token(raw: str) -> str:
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-async def create_reset_token(session: AsyncSession, *, email: str) -> tuple[str, datetime] | None:
+async def create_reset_token(
+    session: AsyncSession,
+    *,
+    email: str,
+) -> tuple[str, datetime, User] | None:
     user = await user_service.get_user_by_email(session, email=email.lower())
     if user is None:
         return None
 
-    await session.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id))
+    await session.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+    )
 
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
@@ -39,10 +46,13 @@ async def create_reset_token(session: AsyncSession, *, email: str) -> tuple[str,
     )
     session.add(reset_token)
     await session.commit()
-    return raw_token, expires_at
+    await session.refresh(reset_token)
+    return raw_token, expires_at, user
 
 
-async def consume_reset_token(session: AsyncSession, *, token: str, new_password: str) -> User:
+async def consume_reset_token(
+    session: AsyncSession, *, token: str, new_password: str
+) -> User:
     token_hash = _hash_token(token)
     result = await session.execute(
         select(PasswordResetToken)
@@ -66,3 +76,13 @@ async def consume_reset_token(session: AsyncSession, *, token: str, new_password
     session.add_all([user, record])
     await session.commit()
     return user
+
+
+async def purge_expired_tokens(session: AsyncSession) -> int:
+    """Remove expired tokens to keep table tidy (optional helper)."""
+    cutoff = datetime.now(UTC)
+    result = await session.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.expires_at < cutoff)
+    )
+    await session.commit()
+    return result.rowcount or 0

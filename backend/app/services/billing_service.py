@@ -1,4 +1,5 @@
 """Billing services for invoices."""
+
 from __future__ import annotations
 
 import uuid
@@ -38,7 +39,9 @@ async def list_invoices(
     account_id: uuid.UUID,
     status: InvoiceStatus | None = None,
 ) -> list[Invoice]:
-    stmt: Select[tuple[Invoice]] = select(Invoice).where(Invoice.account_id == account_id)
+    stmt: Select[tuple[Invoice]] = select(Invoice).where(
+        Invoice.account_id == account_id
+    )
     if status is not None:
         stmt = stmt.where(Invoice.status == status)
     stmt = stmt.options(selectinload(Invoice.items)).order_by(Invoice.created_at.desc())
@@ -68,6 +71,18 @@ async def get_invoice(
     return result.scalars().unique().one_or_none()
 
 
+async def _get_required_invoice(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+) -> Invoice:
+    invoice = await get_invoice(session, account_id=account_id, invoice_id=invoice_id)
+    if invoice is None:
+        raise RuntimeError("Invoice was not persisted as expected")
+    return invoice
+
+
 async def generate_invoice_for_reservation(
     session: AsyncSession,
     *,
@@ -94,7 +109,9 @@ async def generate_invoice_for_reservation(
 
     session.add(invoice)
     await session.commit()
-    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
+    return await _get_required_invoice(
+        session, account_id=account_id, invoice_id=invoice.id
+    )
 
 
 async def add_invoice_item(
@@ -111,7 +128,9 @@ async def add_invoice_item(
     )
     await _recalculate_total(session, invoice)
     await session.commit()
-    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
+    return await _get_required_invoice(
+        session, account_id=account_id, invoice_id=invoice.id
+    )
 
 
 async def mark_invoice_paid(
@@ -124,9 +143,11 @@ async def mark_invoice_paid(
     if invoice.account_id != account_id:
         raise ValueError("Invoice does not belong to the provided account")
     invoice.status = InvoiceStatus.PAID
-    invoice.paid_at = (paid_at or datetime.now(UTC))
+    invoice.paid_at = paid_at or datetime.now(UTC)
     await session.commit()
-    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
+    return await _get_required_invoice(
+        session, account_id=account_id, invoice_id=invoice.id
+    )
 
 
 async def mark_invoice_unpaid(
@@ -140,7 +161,9 @@ async def mark_invoice_unpaid(
     invoice.status = InvoiceStatus.PENDING
     invoice.paid_at = None
     await session.commit()
-    return await get_invoice(session, account_id=account_id, invoice_id=invoice.id)
+    return await _get_required_invoice(
+        session, account_id=account_id, invoice_id=invoice.id
+    )
 
 
 async def process_payment(
@@ -154,8 +177,10 @@ async def process_payment(
         raise ValueError("Invoice does not belong to the provided account")
     if amount < invoice.total_amount:
         raise ValueError("Payment amount is less than total due")
-    paid_invoice = await mark_invoice_paid(session, invoice=invoice, account_id=account_id, paid_at=datetime.now(UTC))
-    return await get_invoice(session, account_id=account_id, invoice_id=paid_invoice.id)
+    paid_invoice = await mark_invoice_paid(
+        session, invoice=invoice, account_id=account_id, paid_at=datetime.now(UTC)
+    )
+    return paid_invoice
 
 
 async def list_outstanding_invoices(
@@ -163,7 +188,9 @@ async def list_outstanding_invoices(
     *,
     account_id: uuid.UUID,
 ) -> list[Invoice]:
-    return await list_invoices(session, account_id=account_id, status=InvoiceStatus.PENDING)
+    return await list_invoices(
+        session, account_id=account_id, status=InvoiceStatus.PENDING
+    )
 
 
 async def _recalculate_total(session: AsyncSession, invoice: Invoice) -> None:

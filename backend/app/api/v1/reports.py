@@ -1,9 +1,11 @@
 """Reporting and analytics endpoints."""
+
 from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any, Sequence, cast
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,10 +21,14 @@ router = APIRouter(prefix="/reports")
 
 def _assert_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
-@router.get("/occupancy", response_model=list[OccupancyEntry], summary="Daily occupancy report")
+@router.get(
+    "/occupancy", response_model=list[OccupancyEntry], summary="Daily occupancy report"
+)
 async def occupancy_report(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
@@ -42,7 +48,9 @@ async def occupancy_report(
             reservation_type=reservation_type,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     return [OccupancyEntry.model_validate(entry) for entry in entries]
 
 
@@ -56,7 +64,7 @@ async def revenue_report(
 ) -> RevenueReport:
     _assert_staff(current_user)
     try:
-        report = await reporting_service.revenue_report(
+        report_data = await reporting_service.revenue_report(
             session,
             account_id=current_user.account_id,
             start_date=start_date,
@@ -64,6 +72,11 @@ async def revenue_report(
             location_id=location_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    entries = [RevenueEntry.model_validate(entry) for entry in report["entries"]]
-    return RevenueReport(entries=entries, grand_total=report["grand_total"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    entries_raw = cast(Sequence[dict[str, Any]], report_data["entries"])
+    entries = [RevenueEntry.model_validate(entry) for entry in entries_raw]
+    grand_total = cast(Decimal, report_data["grand_total"])
+    return RevenueReport(entries=entries, grand_total=grand_total)

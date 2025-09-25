@@ -1,16 +1,28 @@
 """Account administration tests."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.security import get_password_hash
 from app.db.session import get_sessionmaker
-from app.models import Account, User, UserRole, UserStatus
+from app.models import Account, AuditEvent, User, UserRole, UserStatus
 
 pytestmark = pytest.mark.asyncio
+
+
+async def _fetch_events(db_url: str, event_type: str) -> list[AuditEvent]:
+    sessionmaker = get_sessionmaker(db_url)
+    async with sessionmaker() as session:
+        result = await session.execute(
+            select(AuditEvent).where(AuditEvent.event_type == event_type)
+        )
+        return result.scalars().all()
 
 
 async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
@@ -23,7 +35,9 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-async def test_account_crud_superadmin(app_context: dict[str, object], db_url: str) -> None:
+async def test_account_crud_superadmin(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
 
     sessionmaker = get_sessionmaker(db_url)
@@ -45,9 +59,17 @@ async def test_account_crud_superadmin(app_context: dict[str, object], db_url: s
     headers = {"Authorization": f"Bearer {token}"}
 
     create_payload = {"name": "North Resort", "slug": f"north-{uuid.uuid4().hex[:6]}"}
-    create_resp = await client.post("/api/v1/accounts", json=create_payload, headers=headers)
+    create_resp = await client.post(
+        "/api/v1/accounts", json=create_payload, headers=headers
+    )
     assert create_resp.status_code == 201
     account_id = create_resp.json()["id"]
+
+    created_events = await _fetch_events(db_url, "account.created")
+    assert any(
+        evt.payload and evt.payload.get("slug") == create_payload["slug"]
+        for evt in created_events
+    )
 
     list_resp = await client.get("/api/v1/accounts", headers=headers)
     assert list_resp.status_code == 200
@@ -61,14 +83,28 @@ async def test_account_crud_superadmin(app_context: dict[str, object], db_url: s
     assert update_resp.status_code == 200
     assert update_resp.json()["name"] == "North Resort Updated"
 
+    updated_events = await _fetch_events(db_url, "account.updated")
+    assert any(
+        evt.payload and evt.payload.get("account_id") == account_id
+        for evt in updated_events
+    )
+
     delete_resp = await client.delete(f"/api/v1/accounts/{account_id}", headers=headers)
     assert delete_resp.status_code == 204
+
+    deleted_events = await _fetch_events(db_url, "account.deleted")
+    assert any(
+        evt.payload and evt.payload.get("account_id") == account_id
+        for evt in deleted_events
+    )
 
     get_deleted = await client.get(f"/api/v1/accounts/{account_id}", headers=headers)
     assert get_deleted.status_code == 404
 
 
-async def test_account_admin_permissions(app_context: dict[str, object], db_url: str) -> None:
+async def test_account_admin_permissions(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     account_id = app_context["account_id"]
 
@@ -86,7 +122,9 @@ async def test_account_admin_permissions(app_context: dict[str, object], db_url:
         )
         session.add(admin_user)
 
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.commit()
 
@@ -102,7 +140,9 @@ async def test_account_admin_permissions(app_context: dict[str, object], db_url:
     get_resp = await client.get(f"/api/v1/accounts/{account_id}", headers=headers)
     assert get_resp.status_code == 200
 
-    get_other = await client.get(f"/api/v1/accounts/{other_account.id}", headers=headers)
+    get_other = await client.get(
+        f"/api/v1/accounts/{other_account.id}", headers=headers
+    )
     assert get_other.status_code == 404
 
     update_resp = await client.patch(
@@ -121,9 +161,11 @@ async def test_account_admin_permissions(app_context: dict[str, object], db_url:
     assert create_attempt.status_code == 403
 
 
-async def test_account_manager_forbidden(app_context: dict[str, object]) -> None:
+async def test_account_manager_forbidden(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
-    token = await _authenticate(client, app_context["manager_email"], app_context["manager_password"])  # type: ignore[arg-type]
+    token = await _authenticate(
+        client, app_context["manager_email"], app_context["manager_password"]
+    )  # type: ignore[arg-type]
     headers = {"Authorization": f"Bearer {token}"}
 
     list_resp = await client.get("/api/v1/accounts", headers=headers)

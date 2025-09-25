@@ -1,5 +1,7 @@
 """ORM models package export."""
+
 from app.models.account import Account
+from app.models.audit_event import AuditEvent
 from app.models.feeding_schedule import FeedingSchedule
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.location import Location
@@ -19,6 +21,7 @@ from app.models.user import User, UserRole, UserStatus
 
 __all__ = [
     "Account",
+    "AuditEvent",
     "FeedingSchedule",
     "Invoice",
     "InvoiceItem",

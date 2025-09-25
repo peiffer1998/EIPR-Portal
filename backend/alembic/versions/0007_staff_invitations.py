@@ -1,12 +1,13 @@
 """Add staff invitations table."""
+
 from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = "0007_staff_invitations"
-down_revision = "0006_password_reset_tokens"
+revision = "0007"
+down_revision = "0006"
 branch_labels = None
 depends_on = None
 
@@ -24,8 +25,18 @@ def upgrade() -> None:
     op.create_table(
         "staff_invitations",
         sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
-        sa.Column("account_id", sa.Uuid(as_uuid=True), sa.ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("invited_by_user_id", sa.Uuid(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "account_id",
+            sa.Uuid(as_uuid=True),
+            sa.ForeignKey("accounts.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "invited_by_user_id",
+            sa.Uuid(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
         sa.Column("email", sa.String(length=320), nullable=False),
         sa.Column("first_name", sa.String(length=120), nullable=False),
         sa.Column("last_name", sa.String(length=120), nullable=False),
@@ -41,8 +52,18 @@ def upgrade() -> None:
         sa.Column("token_prefix", sa.String(length=16), nullable=False, unique=True),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
     op.create_index(
         "ix_staff_invitations_account_id",

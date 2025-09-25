@@ -1,6 +1,8 @@
 """Test fixtures for the EIPR backend."""
+
 from __future__ import annotations
 
+from typing import Any
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -54,7 +56,9 @@ async def reset_database(db_url: str) -> AsyncIterator[None]:
 
 
 @pytest_asyncio.fixture()
-async def app_context(reset_database: AsyncIterator[None], db_url: str) -> AsyncIterator[dict[str, object]]:
+async def app_context(
+    reset_database: AsyncIterator[None], db_url: str
+) -> AsyncIterator[dict[str, Any]]:
     """Yield an async client and seeded account data."""
     sessionmaker = get_sessionmaker(db_url)
     manager_password = "Passw0rd!"

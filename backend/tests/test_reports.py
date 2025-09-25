@@ -1,6 +1,8 @@
 """Reporting and analytics API tests."""
+
 from __future__ import annotations
 
+from typing import Any
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -104,7 +106,7 @@ async def _progress_reservation_to_checkout(
     assert check_out_resp.status_code == 200
 
 
-async def test_occupancy_report(app_context: dict[str, object]) -> None:
+async def test_occupancy_report(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -121,7 +123,7 @@ async def test_occupancy_report(app_context: dict[str, object]) -> None:
     )
 
     start_at = datetime.now(timezone.utc) + timedelta(days=1)
-    reservation_id = await _create_reservation(
+    await _create_reservation(
         client,
         headers,
         pet_id=pet_id,
@@ -144,7 +146,7 @@ async def test_occupancy_report(app_context: dict[str, object]) -> None:
     assert any(entry["booked"] >= 1 for entry in entries)
 
 
-async def test_revenue_report(app_context: dict[str, object]) -> None:
+async def test_revenue_report(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]

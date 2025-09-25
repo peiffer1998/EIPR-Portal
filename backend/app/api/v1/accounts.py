@@ -1,24 +1,31 @@
 """Account administration API endpoints."""
+
 from __future__ import annotations
 
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.models.user import User, UserRole
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
-from app.services import account_service
+from app.services import account_service, audit_service
 
 router = APIRouter()
 
 
 def _require_account_admin(user: User) -> None:
     if user.role not in {UserRole.SUPERADMIN, UserRole.ADMIN}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
 
 
 @router.get("", response_model=list[AccountRead], summary="List accounts")
@@ -34,7 +41,9 @@ async def list_accounts(
     else:
         account = await account_service.get_account(session, current_user.account_id)
         if account is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+            )
         accounts = [account]
     return [AccountRead.model_validate(obj) for obj in accounts]
 
@@ -49,13 +58,29 @@ async def create_account(
     payload: AccountCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    request: Request,
 ) -> AccountRead:
     if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only superadmins can create accounts")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins can create accounts",
+        )
     try:
         account = await account_service.create_account(session, payload)
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account slug already in use") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account slug already in use",
+        ) from exc
+    await audit_service.record_event(
+        session,
+        account_id=account.id,
+        user_id=current_user.id,
+        event_type="account.created",
+        description="Account created",
+        payload={"account_id": str(account.id), "slug": account.slug},
+        ip_address=_client_ip(request),
+    )
     return AccountRead.model_validate(account)
 
 
@@ -68,9 +93,16 @@ async def read_account(
     _require_account_admin(current_user)
     account = await account_service.get_account(session, account_id)
     if account is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    if current_user.role != UserRole.SUPERADMIN and account.id != current_user.account_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+    if (
+        current_user.role != UserRole.SUPERADMIN
+        and account.id != current_user.account_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
     return AccountRead.model_validate(account)
 
 
@@ -80,17 +112,40 @@ async def update_account(
     payload: AccountUpdate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    request: Request,
 ) -> AccountRead:
     _require_account_admin(current_user)
     account = await account_service.get_account(session, account_id)
     if account is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    if current_user.role != UserRole.SUPERADMIN and account.id != current_user.account_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+    if (
+        current_user.role != UserRole.SUPERADMIN
+        and account.id != current_user.account_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
     try:
         updated = await account_service.update_account(session, account, payload)
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account slug already in use") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account slug already in use",
+        ) from exc
+    await audit_service.record_event(
+        session,
+        account_id=updated.id,
+        user_id=current_user.id,
+        event_type="account.updated",
+        description="Account updated",
+        payload={
+            "account_id": str(updated.id),
+            **payload.model_dump(exclude_unset=True),
+        },
+        ip_address=_client_ip(request),
+    )
     return AccountRead.model_validate(updated)
 
 
@@ -103,11 +158,29 @@ async def delete_account(
     account_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    request: Request,
 ) -> None:
     _require_account_admin(current_user)
     account = await account_service.get_account(session, account_id)
     if account is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    if current_user.role != UserRole.SUPERADMIN and account.id != current_user.account_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
+    if (
+        current_user.role != UserRole.SUPERADMIN
+        and account.id != current_user.account_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found"
+        )
     await account_service.delete_account(session, account)
+    await audit_service.record_event(
+        session,
+        account_id=account_id,
+        user_id=current_user.id,
+        event_type="account.deleted",
+        description="Account deleted",
+        payload={"account_id": str(account_id)},
+        ip_address=_client_ip(request),
+    )
+    return None

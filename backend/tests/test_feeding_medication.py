@@ -1,6 +1,8 @@
 """Feeding and medication schedule API tests."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -37,7 +39,9 @@ async def _create_owner_and_pet(
         "email": f"{email_prefix}.guardian@example.com",
         "password": "StrongPass1!",
     }
-    owner_resp = await client.post("/api/v1/owners", json=owner_payload, headers=headers)
+    owner_resp = await client.post(
+        "/api/v1/owners", json=owner_payload, headers=headers
+    )
     assert owner_resp.status_code == 201
     owner_id = owner_resp.json()["id"]
 
@@ -69,12 +73,16 @@ async def _create_reservation(
         "end_at": end_at.isoformat(),
         "base_rate": "120.00",
     }
-    response = await client.post("/api/v1/reservations", json=reservation_payload, headers=headers)
+    response = await client.post(
+        "/api/v1/reservations", json=reservation_payload, headers=headers
+    )
     assert response.status_code == 201
     return response.json()["id"]
 
 
-async def test_feeding_and_medication_schedule_lifecycle(app_context: dict[str, object]) -> None:
+async def test_feeding_and_medication_schedule_lifecycle(
+    app_context: dict[str, Any],
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -84,7 +92,9 @@ async def test_feeding_and_medication_schedule_lifecycle(app_context: dict[str, 
     headers = {"Authorization": f"Bearer {token}"}
 
     ids = await _create_owner_and_pet(client, headers, location_id)
-    reservation_id = await _create_reservation(client, headers, ids["pet_id"], location_id)
+    reservation_id = await _create_reservation(
+        client, headers, ids["pet_id"], location_id
+    )
 
     feeding_payload = {
         "reservation_id": reservation_id,
@@ -151,8 +161,12 @@ async def test_feeding_and_medication_schedule_lifecycle(app_context: dict[str, 
     )
     assert reservation_resp.status_code == 200
     reservation_body = reservation_resp.json()
-    assert any(item["id"] == feeding_id for item in reservation_body["feeding_schedules"])
-    assert any(item["id"] == medication_id for item in reservation_body["medication_schedules"])
+    assert any(
+        item["id"] == feeding_id for item in reservation_body["feeding_schedules"]
+    )
+    assert any(
+        item["id"] == medication_id for item in reservation_body["medication_schedules"]
+    )
 
     delete_feeding = await client.delete(
         f"/api/v1/reservations/{reservation_id}/feeding-schedules/{feeding_id}",
@@ -176,7 +190,9 @@ async def test_feeding_and_medication_schedule_lifecycle(app_context: dict[str, 
     assert body["medication_schedules"] == []
 
 
-async def test_schedule_account_isolation(app_context: dict[str, object], db_url: str) -> None:
+async def test_schedule_account_isolation(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -184,8 +200,12 @@ async def test_schedule_account_isolation(app_context: dict[str, object], db_url
 
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
-    ids = await _create_owner_and_pet(client, headers, location_id, email_prefix="isolation")
-    reservation_id = await _create_reservation(client, headers, ids["pet_id"], location_id)
+    ids = await _create_owner_and_pet(
+        client, headers, location_id, email_prefix="isolation"
+    )
+    reservation_id = await _create_reservation(
+        client, headers, ids["pet_id"], location_id
+    )
 
     feeding_payload = {
         "reservation_id": reservation_id,
@@ -201,7 +221,9 @@ async def test_schedule_account_isolation(app_context: dict[str, object], db_url
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 
@@ -225,7 +247,9 @@ async def test_schedule_account_isolation(app_context: dict[str, object], db_url
         session.add(other_manager)
         await session.commit()
 
-    other_token = await _authenticate(client, "other.manager@example.com", other_password)
+    other_token = await _authenticate(
+        client, "other.manager@example.com", other_password
+    )
     other_headers = {"Authorization": f"Bearer {other_token}"}
 
     list_resp = await client.get(

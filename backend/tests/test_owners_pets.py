@@ -1,6 +1,8 @@
 """Integration tests for owner and pet APIs."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 
 import pytest
@@ -24,7 +26,7 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return payload["access_token"]
 
 
-async def test_owner_pet_lifecycle(app_context: dict[str, object]) -> None:
+async def test_owner_pet_lifecycle(app_context: dict[str, Any]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -43,7 +45,9 @@ async def test_owner_pet_lifecycle(app_context: dict[str, object]) -> None:
         "notes": "Loves daily updates",
         "is_primary_contact": True,
     }
-    create_owner_resp = await client.post("/api/v1/owners", json=owner_payload, headers=headers)
+    create_owner_resp = await client.post(
+        "/api/v1/owners", json=owner_payload, headers=headers
+    )
     assert create_owner_resp.status_code == 201
     owner_id = create_owner_resp.json()["id"]
 
@@ -61,7 +65,9 @@ async def test_owner_pet_lifecycle(app_context: dict[str, object]) -> None:
         "date_of_birth": "2020-05-01",
         "notes": "Requires hypoallergenic shampoo",
     }
-    create_pet_resp = await client.post("/api/v1/pets", json=pet_payload, headers=headers)
+    create_pet_resp = await client.post(
+        "/api/v1/pets", json=pet_payload, headers=headers
+    )
     assert create_pet_resp.status_code == 201
     pet_body = create_pet_resp.json()
     assert pet_body["owner_id"] == owner_id
@@ -72,7 +78,9 @@ async def test_owner_pet_lifecycle(app_context: dict[str, object]) -> None:
     assert any(item["id"] == pet_body["id"] for item in pets_list.json())
 
 
-async def test_owner_access_is_account_scoped(app_context: dict[str, object], db_url: str) -> None:
+async def test_owner_access_is_account_scoped(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -86,13 +94,17 @@ async def test_owner_access_is_account_scoped(app_context: dict[str, object], db
         "email": "jamie.owner@example.com",
         "password": "SecurePass1!",
     }
-    create_owner_resp = await client.post("/api/v1/owners", json=owner_payload, headers=headers)
+    create_owner_resp = await client.post(
+        "/api/v1/owners", json=owner_payload, headers=headers
+    )
     assert create_owner_resp.status_code == 201
     owner_id = create_owner_resp.json()["id"]
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 

@@ -1,6 +1,8 @@
 """Location capacity rule API tests."""
+
 from __future__ import annotations
 
+from typing import Any
 import uuid
 
 import pytest
@@ -37,7 +39,7 @@ async def _create_location(db_url: str, account_id: uuid.UUID, name: str) -> uui
         return location.id
 
 
-async def test_capacity_rules_crud(app_context: dict[str, object], db_url: str) -> None:
+async def test_capacity_rules_crud(app_context: dict[str, Any], db_url: str) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -93,7 +95,9 @@ async def test_capacity_rules_crud(app_context: dict[str, object], db_url: str) 
     assert not any(rule["id"] == rule_id for rule in final_list.json())
 
 
-async def test_capacity_rules_uniqueness(app_context: dict[str, object], db_url: str) -> None:
+async def test_capacity_rules_uniqueness(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -125,12 +129,16 @@ async def test_capacity_rules_uniqueness(app_context: dict[str, object], db_url:
     assert duplicate_resp.status_code == 400
 
 
-async def test_capacity_rules_account_isolation(app_context: dict[str, object], db_url: str) -> None:
+async def test_capacity_rules_account_isolation(
+    app_context: dict[str, Any], db_url: str
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
-        other_account = Account(name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}")
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
         session.add(other_account)
         await session.flush()
 
@@ -155,7 +163,9 @@ async def test_capacity_rules_account_isolation(app_context: dict[str, object], 
         await session.commit()
         other_location_id = other_location.id
 
-    token = await _authenticate(client, "other.manager@example.com", other_manager_password)
+    token = await _authenticate(
+        client, "other.manager@example.com", other_manager_password
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     invalid_resp = await client.get(
