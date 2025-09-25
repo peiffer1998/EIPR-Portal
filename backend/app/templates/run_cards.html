@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Run Cards - {{ context.location_name }} - {{ context.date.strftime('%Y-%m-%d') }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    h1, h2 { margin-bottom: 0.25rem; }
+    .details { margin-bottom: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #f5f5f5; }
+    .pet-name { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Run Cards</h1>
+  <div class="details">
+    <div><strong>Location:</strong> {{ context.location_name }}</div>
+    <div><strong>Date:</strong> {{ context.date.strftime('%B %d, %Y') }}</div>
+  </div>
+
+  <h2>Feeding Board</h2>
+  {% if context.feedings %}
+    {% for entry in context.feedings %}
+      <table>
+        <thead>
+          <tr>
+            <th colspan="4" class="pet-name">{{ entry.pet_name }} &mdash; {{ entry.owner_name }} ({{ entry.reservation_type.value }})</th>
+          </tr>
+          <tr>
+            <th style="width: 20%">Time</th>
+            <th style="width: 30%">Food</th>
+            <th style="width: 20%">Quantity</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in entry.schedule_items %}
+            <tr>
+              <td>{{ item.scheduled_at.astimezone().strftime('%I:%M %p') }}</td>
+              <td>{{ item.food }}</td>
+              <td>{{ item.quantity or '' }}</td>
+              <td>{{ item.notes or entry.reservation_notes or '' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% else %}
+    <p>No feedings scheduled.</p>
+  {% endif %}
+
+  <h2>Medication Board</h2>
+  {% if context.medications %}
+    {% for entry in context.medications %}
+      <table>
+        <thead>
+          <tr>
+            <th colspan="4" class="pet-name">{{ entry.pet_name }} &mdash; {{ entry.owner_name }} ({{ entry.reservation_type.value }})</th>
+          </tr>
+          <tr>
+            <th style="width: 20%">Time</th>
+            <th style="width: 30%">Medication</th>
+            <th style="width: 20%">Dosage</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in entry.schedule_items %}
+            <tr>
+              <td>{{ item.scheduled_at.astimezone().strftime('%I:%M %p') }}</td>
+              <td>{{ item.medication }}</td>
+              <td>{{ item.dosage or '' }}</td>
+              <td>{{ item.notes or entry.reservation_notes or '' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endfor %}
+  {% else %}
+    <p>No medications scheduled.</p>
+  {% endif %}
+</body>
+</html>
