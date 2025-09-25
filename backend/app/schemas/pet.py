@@ -1,4 +1,5 @@
 """Pydantic schemas for pet profiles."""
+
 from __future__ import annotations
 
 import uuid
@@ -7,6 +8,8 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.pet import PetType
+from app.schemas.icon import PetIconAssignmentRead
+from app.schemas.immunization import ImmunizationRecordRead
 
 
 class PetBase(BaseModel):
@@ -47,5 +50,9 @@ class PetRead(PetBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    immunization_records: list[ImmunizationRecordRead] = Field(default_factory=list)
+    icons: list[PetIconAssignmentRead] = Field(
+        default_factory=list, alias="icon_assignments"
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

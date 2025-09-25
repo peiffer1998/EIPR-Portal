@@ -1,14 +1,25 @@
 """Pet profile model."""
+
 from __future__ import annotations
 
 import enum
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Date, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models import (
+        ImmunizationRecord,
+        Location,
+        OwnerProfile,
+        PetIcon,
+        Reservation,
+    )
 
 
 class PetType(str, enum.Enum):
@@ -41,7 +52,15 @@ class Pet(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(String(1024))
 
     owner: Mapped["OwnerProfile"] = relationship("OwnerProfile", back_populates="pets")
-    home_location: Mapped["Location | None"] = relationship("Location", back_populates="pets")
+    home_location: Mapped["Location | None"] = relationship(
+        "Location", back_populates="pets"
+    )
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation", back_populates="pet"
+    )
+    immunization_records: Mapped[list["ImmunizationRecord"]] = relationship(
+        "ImmunizationRecord", back_populates="pet", cascade="all, delete-orphan"
+    )
+    icon_assignments: Mapped[list["PetIcon"]] = relationship(
+        "PetIcon", back_populates="pet", cascade="all, delete-orphan"
     )

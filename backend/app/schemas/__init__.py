@@ -1,4 +1,5 @@
 """Schema exports."""
+
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.schemas.auth import (
     InvitationAcceptResponse,
@@ -63,9 +64,47 @@ from app.schemas.location_hours import (
     LocationHourUpdate,
 )
 from app.schemas.document import DocumentCreate, DocumentRead
-from app.schemas.reservation import ReservationCreate, ReservationRead, ReservationUpdate
-from app.schemas.scheduling import AvailabilityRequest, AvailabilityResponse, DailyAvailability
-from app.schemas.user import StaffInvitationCreate, StaffInvitationRead, UserCreate, UserRead, UserUpdate
+from app.schemas.immunization import (
+    ImmunizationRecordCreate,
+    ImmunizationRecordRead,
+    ImmunizationRecordUpdate,
+    ImmunizationTypeCreate,
+    ImmunizationTypeRead,
+    ImmunizationTypeUpdate,
+)
+from app.schemas.agreement import (
+    AgreementSignatureCreate,
+    AgreementSignatureRead,
+    AgreementTemplateCreate,
+    AgreementTemplateRead,
+    AgreementTemplateUpdate,
+)
+from app.schemas.icon import (
+    IconCreate,
+    IconRead,
+    IconUpdate,
+    OwnerIconAssignmentCreate,
+    OwnerIconAssignmentRead,
+    PetIconAssignmentCreate,
+    PetIconAssignmentRead,
+)
+from app.schemas.reservation import (
+    ReservationCreate,
+    ReservationRead,
+    ReservationUpdate,
+)
+from app.schemas.scheduling import (
+    AvailabilityRequest,
+    AvailabilityResponse,
+    DailyAvailability,
+)
+from app.schemas.user import (
+    StaffInvitationCreate,
+    StaffInvitationRead,
+    UserCreate,
+    UserRead,
+    UserUpdate,
+)
 
 __all__ = [
     "AccountCreate",
@@ -123,6 +162,24 @@ __all__ = [
     "LocationClosureRead",
     "DocumentCreate",
     "DocumentRead",
+    "ImmunizationTypeCreate",
+    "ImmunizationTypeRead",
+    "ImmunizationTypeUpdate",
+    "ImmunizationRecordCreate",
+    "ImmunizationRecordRead",
+    "ImmunizationRecordUpdate",
+    "AgreementTemplateCreate",
+    "AgreementTemplateRead",
+    "AgreementTemplateUpdate",
+    "AgreementSignatureCreate",
+    "AgreementSignatureRead",
+    "IconCreate",
+    "IconRead",
+    "IconUpdate",
+    "OwnerIconAssignmentCreate",
+    "OwnerIconAssignmentRead",
+    "PetIconAssignmentCreate",
+    "PetIconAssignmentRead",
     "PetCreate",
     "PetRead",
     "PetUpdate",

@@ -1,4 +1,5 @@
 """Pet management service helpers."""
+
 from __future__ import annotations
 
 import uuid
@@ -15,6 +16,8 @@ from app.models.location import Location
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet, PetType
 from app.models.user import User
+from app.models.immunization import ImmunizationRecord
+from app.models.icon import PetIcon
 
 
 def _base_pet_query(account_id: uuid.UUID) -> Select[tuple[Pet]]:
@@ -23,7 +26,16 @@ def _base_pet_query(account_id: uuid.UUID) -> Select[tuple[Pet]]:
         select(Pet)
         .join(Pet.owner)
         .join(OwnerProfile.user)
-        .options(selectinload(Pet.owner).selectinload(OwnerProfile.user))
+        .options(
+            selectinload(Pet.owner).selectinload(OwnerProfile.user),
+            selectinload(Pet.immunization_records).selectinload(
+                ImmunizationRecord.immunization_type
+            ),
+            selectinload(Pet.immunization_records).selectinload(
+                ImmunizationRecord.document
+            ),
+            selectinload(Pet.icon_assignments).selectinload(PetIcon.icon),
+        )
         .where(User.account_id == account_id)
         .order_by(Pet.created_at.desc())
     )
@@ -97,7 +109,9 @@ async def create_pet(
     """Create a pet profile scoped to an account."""
     owner = await _validate_owner(session, account_id=account_id, owner_id=owner_id)
     if home_location_id is not None:
-        await _validate_location(session, account_id=account_id, location_id=home_location_id)
+        await _validate_location(
+            session, account_id=account_id, location_id=home_location_id
+        )
 
     pet = Pet(
         owner_id=owner.id,
@@ -117,6 +131,8 @@ async def create_pet(
         raise
     await session.refresh(pet)
     await session.refresh(pet, attribute_names=["owner"])
+    await session.refresh(pet, attribute_names=["immunization_records"])
+    await session.refresh(pet, attribute_names=["icon_assignments"])
     return pet
 
 
@@ -144,7 +160,9 @@ async def update_pet(
         pet.owner_id = owner.id
 
     if home_location_id is not None:
-        await _validate_location(session, account_id=account_id, location_id=home_location_id)
+        await _validate_location(
+            session, account_id=account_id, location_id=home_location_id
+        )
         pet.home_location_id = home_location_id
 
     if name is not None:
@@ -164,4 +182,6 @@ async def update_pet(
     await session.commit()
     await session.refresh(pet)
     await session.refresh(pet, attribute_names=["owner"])
+    await session.refresh(pet, attribute_names=["immunization_records"])
+    await session.refresh(pet, attribute_names=["icon_assignments"])
     return pet

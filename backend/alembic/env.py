@@ -1,10 +1,12 @@
 """Alembic environment configuration."""
+
 from __future__ import annotations
 
 from logging.config import fileConfig
 from os import environ
 
 from sqlalchemy import engine_from_config, pool
+from sqlalchemy.engine import make_url
 from alembic import context
 
 from app.core.config import get_settings
@@ -16,7 +18,12 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", environ.get("DATABASE_URL", settings.database_url))
+sync_url = settings.sync_database_url or settings.database_url
+raw_url = environ.get("DATABASE_URL", sync_url)
+url = make_url(raw_url)
+if url.drivername == "postgresql":
+    url = url.set(drivername="postgresql+psycopg")
+config.set_main_option("sqlalchemy.url", str(url))
 
 target_metadata = Base.metadata
 
@@ -24,7 +31,12 @@ target_metadata = Base.metadata
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
-    context.configure(url=url, target_metadata=target_metadata, literal_binds=True, dialect_opts={"paramstyle": "named"})
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
 
     with context.begin_transaction():
         context.run_migrations()

@@ -1,4 +1,5 @@
 """Versioned API router."""
+
 from fastapi import APIRouter
 
 from . import (
@@ -8,6 +9,9 @@ from . import (
     documents,
     feeding,
     health,
+    immunizations,
+    agreements,
+    icons,
     invoices,
     location_hours,
     locations,
@@ -30,10 +34,17 @@ router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 router.include_router(locations.router, prefix="/locations", tags=["locations"])
 router.include_router(owners.router, prefix="/owners", tags=["owners"])
 router.include_router(pets.router, prefix="/pets", tags=["pets"])
-router.include_router(reservations.router, prefix="/reservations", tags=["reservations"])
+router.include_router(
+    reservations.router, prefix="/reservations", tags=["reservations"]
+)
 router.include_router(feeding.router, tags=["feeding"])
 router.include_router(medication.router, tags=["medication"])
 router.include_router(invoices.router, tags=["invoices"])
+router.include_router(
+    immunizations.router, prefix="/immunizations", tags=["immunizations"]
+)
+router.include_router(agreements.router, prefix="/agreements", tags=["agreements"])
+router.include_router(icons.router, prefix="/icons", tags=["icons"])
 router.include_router(reports.router, tags=["reports"])
 router.include_router(capacity.router, tags=["capacity"])
 router.include_router(service_catalog.router, tags=["service-catalog"])

@@ -1,4 +1,5 @@
 """Pydantic schemas for owner profiles."""
+
 from __future__ import annotations
 
 import uuid
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.reservation import ReservationType
 from app.schemas.user import UserRead
+from app.schemas.icon import OwnerIconAssignmentRead
 
 
 class OwnerBase(BaseModel):
@@ -50,8 +52,11 @@ class OwnerRead(BaseModel):
     user: UserRead
     created_at: datetime
     updated_at: datetime
+    icons: list[OwnerIconAssignmentRead] = Field(
+        default_factory=list, alias="icon_assignments"
+    )
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class OwnerReservationRequest(BaseModel):

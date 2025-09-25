@@ -1,4 +1,5 @@
 """Owner management service helpers."""
+
 from __future__ import annotations
 
 import uuid
@@ -13,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.core.security import get_password_hash
 from app.models.owner_profile import OwnerProfile
 from app.models.user import User, UserRole, UserStatus
+from app.models.icon import OwnerIcon
 
 
 def _base_owner_query(account_id: uuid.UUID) -> Select[tuple[OwnerProfile]]:
@@ -20,7 +22,10 @@ def _base_owner_query(account_id: uuid.UUID) -> Select[tuple[OwnerProfile]]:
     return (
         select(OwnerProfile)
         .join(OwnerProfile.user)
-        .options(selectinload(OwnerProfile.user))
+        .options(
+            selectinload(OwnerProfile.user),
+            selectinload(OwnerProfile.icon_assignments).selectinload(OwnerIcon.icon),
+        )
         .where(User.account_id == account_id)
         .order_by(OwnerProfile.created_at.desc())
     )
@@ -92,6 +97,7 @@ async def create_owner(
         raise
     await session.refresh(owner)
     await session.refresh(owner, attribute_names=["user"])
+    await session.refresh(owner, attribute_names=["icon_assignments"])
     return owner
 
 
@@ -140,6 +146,7 @@ async def update_owner(
         raise
     await session.refresh(owner)
     await session.refresh(owner, attribute_names=["user"])
+    await session.refresh(owner, attribute_names=["icon_assignments"])
     return owner
 
 

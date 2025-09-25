@@ -6,6 +6,13 @@ from app.models.feeding_schedule import FeedingSchedule
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.location import Location
 from app.models.password_reset import PasswordResetToken
+from app.models.immunization import (
+    ImmunizationRecord,
+    ImmunizationStatus,
+    ImmunizationType,
+)
+from app.models.agreement import AgreementSignature, AgreementTemplate
+from app.models.icon import Icon, IconEntity, OwnerIcon, PetIcon
 from app.models.location_capacity import LocationCapacityRule
 from app.models.medication_schedule import MedicationSchedule
 from app.models.owner_profile import OwnerProfile
@@ -28,6 +35,15 @@ __all__ = [
     "InvoiceStatus",
     "Location",
     "PasswordResetToken",
+    "ImmunizationRecord",
+    "ImmunizationStatus",
+    "ImmunizationType",
+    "AgreementTemplate",
+    "AgreementSignature",
+    "Icon",
+    "IconEntity",
+    "OwnerIcon",
+    "PetIcon",
     "LocationCapacityRule",
     "MedicationSchedule",
     "OwnerProfile",

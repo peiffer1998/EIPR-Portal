@@ -1,4 +1,5 @@
 """Email and SMS notification helpers."""
+
 from __future__ import annotations
 
 import logging
@@ -9,6 +10,7 @@ from typing import Iterable
 from fastapi import BackgroundTasks
 
 from app.core.config import get_settings
+from app.models.immunization import ImmunizationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,9 @@ def build_welcome_email(*, first_name: str) -> tuple[str, str]:
     return subject, body
 
 
-def build_booking_confirmation_email(*, pet_name: str, start_at: str, end_at: str, location_name: str) -> tuple[str, str]:
+def build_booking_confirmation_email(
+    *, pet_name: str, start_at: str, end_at: str, location_name: str
+) -> tuple[str, str]:
     subject = f"Booking confirmed for {pet_name}"
     body = (
         f"Hello,\n\nYour reservation for {pet_name} at {location_name} is confirmed.\n"
@@ -66,7 +70,9 @@ def build_booking_confirmation_email(*, pet_name: str, start_at: str, end_at: st
     return subject, body
 
 
-def build_check_in_notification(*, pet_name: str, location_name: str) -> tuple[str, str]:
+def build_check_in_notification(
+    *, pet_name: str, location_name: str
+) -> tuple[str, str]:
     subject = f"{pet_name} is checked in"
     body = (
         f"Hi there,\n\n{pet_name} has successfully checked in at {location_name}. "
@@ -104,7 +110,71 @@ def build_password_reset_email(*, token: str) -> tuple[str, str]:
     return subject, body
 
 
-def build_staff_invitation_email(*, first_name: str, inviter_name: str, role: str, token: str) -> tuple[str, str]:
+def build_immunization_alert_email(
+    *,
+    pet_name: str,
+    immunization_name: str,
+    status: ImmunizationStatus,
+    expires_on: str | None,
+) -> tuple[str, str]:
+    if status is ImmunizationStatus.EXPIRED:
+        subject = f"{pet_name}'s {immunization_name} has expired"
+        timeline = "expired"
+    else:
+        subject = f"{pet_name}'s {immunization_name} expires soon"
+        timeline = "will expire soon"
+    body_lines = [
+        "Hello,",
+        "",
+        f"This is a reminder that {pet_name}'s {immunization_name} {timeline}.",
+    ]
+    if expires_on:
+        body_lines.append(f"Expiration date: {expires_on}")
+    body_lines.extend(
+        [
+            "Please provide updated vaccination records before the next reservation.",
+            "",
+            "Thank you!",
+        ]
+    )
+    return subject, "\n".join(body_lines)
+
+
+def notify_immunization_alert(
+    *, record, owner_user, background_tasks: BackgroundTasks
+) -> None:
+    pet = getattr(record, "pet", None)
+    immunization_type = getattr(record, "immunization_type", None)
+    if not owner_user or not immunization_type or not pet:
+        return
+    subject, body = build_immunization_alert_email(
+        pet_name=getattr(pet, "name", "Your pet"),
+        immunization_name=immunization_type.name,
+        status=record.status,
+        expires_on=record.expires_on.isoformat() if record.expires_on else None,
+    )
+    schedule_email(
+        background_tasks,
+        recipients=[owner_user.email],
+        subject=subject,
+        body=body,
+    )
+    if getattr(owner_user, "phone_number", None):
+        status_phrase = (
+            "has expired"
+            if record.status is ImmunizationStatus.EXPIRED
+            else "expires soon"
+        )
+        schedule_sms(
+            background_tasks,
+            phone_numbers=[owner_user.phone_number],
+            message=f"Reminder: {getattr(pet, 'name', 'Your pet')}'s {immunization_type.name} {status_phrase}.",
+        )
+
+
+def build_staff_invitation_email(
+    *, first_name: str, inviter_name: str, role: str, token: str
+) -> tuple[str, str]:
     subject = "You're invited to join Eastern Iowa Pet Resort"
     body = (
         f"Hi {first_name},\n\n"
