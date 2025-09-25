@@ -67,10 +67,9 @@ from app.schemas.document import DocumentCreate, DocumentRead
 from app.schemas.immunization import (
     ImmunizationRecordCreate,
     ImmunizationRecordRead,
-    ImmunizationRecordUpdate,
+    ImmunizationRecordStatus,
     ImmunizationTypeCreate,
     ImmunizationTypeRead,
-    ImmunizationTypeUpdate,
 )
 from app.schemas.agreement import (
     AgreementSignatureCreate,
@@ -97,6 +96,13 @@ from app.schemas.scheduling import (
     AvailabilityRequest,
     AvailabilityResponse,
     DailyAvailability,
+)
+from app.schemas.ops_p5 import (
+    FeedingBoardItem,
+    FeedingBoardRow,
+    MedicationBoardItem,
+    MedicationBoardRow,
+    RunCardContext,
 )
 from app.schemas.user import (
     StaffInvitationCreate,
@@ -164,10 +170,10 @@ __all__ = [
     "DocumentRead",
     "ImmunizationTypeCreate",
     "ImmunizationTypeRead",
-    "ImmunizationTypeUpdate",
+    "ImmunizationRecordStatus",
     "ImmunizationRecordCreate",
     "ImmunizationRecordRead",
-    "ImmunizationRecordUpdate",
+    "ImmunizationRecordStatus",
     "AgreementTemplateCreate",
     "AgreementTemplateRead",
     "AgreementTemplateUpdate",
@@ -189,4 +195,9 @@ __all__ = [
     "AvailabilityRequest",
     "AvailabilityResponse",
     "DailyAvailability",
+    "FeedingBoardItem",
+    "FeedingBoardRow",
+    "MedicationBoardItem",
+    "MedicationBoardRow",
+    "RunCardContext",
 ]

@@ -1,8 +1,9 @@
 """Security utilities for hashing and JWT handling."""
+
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+from jose import jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
@@ -21,7 +22,9 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None, **extra: Any) -> str:
+def create_access_token(
+    subject: str, expires_delta: timedelta | None = None, **extra: Any
+) -> str:
     """Create a JWT access token."""
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
@@ -33,4 +36,6 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None, **
 
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decode a JWT token, raising JWTError on failure."""
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    return jwt.decode(
+        token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+    )

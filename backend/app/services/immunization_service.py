@@ -1,48 +1,56 @@
-"""Business logic for immunization tracking."""
+"""Business logic for the health immunization track."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta, date
+from datetime import date, timedelta
 from typing import Sequence
 
-from fastapi import BackgroundTasks
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import joinedload
 
-from app.models.document import Document
-from app.models.immunization import (
+from app.models import (
     ImmunizationRecord,
     ImmunizationStatus,
     ImmunizationType,
+    OwnerProfile,
+    Pet,
+    User,
 )
-from app.models.owner_profile import OwnerProfile
-from app.models.pet import Pet
-from app.models.user import User
-from app.schemas.document import DocumentCreate
 from app.schemas.immunization import (
     ImmunizationRecordCreate,
-    ImmunizationRecordUpdate,
+    ImmunizationRecordRead,
+    ImmunizationRecordStatus,
     ImmunizationTypeCreate,
-    ImmunizationTypeUpdate,
 )
-from app.services import document_service, notification_service
+
+DEFAULT_EXPIRING_WINDOW_DAYS = 30
 
 
-def _determine_status(
+def compute_status(
+    record: ImmunizationRecord,
     *,
-    expires_on: date | None,
-    reminder_days: int,
+    reference_date: date | None = None,
+    expiring_window_days: int = DEFAULT_EXPIRING_WINDOW_DAYS,
 ) -> ImmunizationStatus:
-    today = date.today()
-    if not expires_on:
-        return ImmunizationStatus.VALID
-    if expires_on < today:
+    """Determine the appropriate status for a record."""
+
+    today = reference_date or date.today()
+
+    if record.verified_by_user_id is None:
+        return ImmunizationStatus.PENDING
+
+    if record.expires_on is None:
+        return ImmunizationStatus.CURRENT
+
+    if record.expires_on < today:
         return ImmunizationStatus.EXPIRED
-    if expires_on <= today + timedelta(days=reminder_days):
+
+    if record.expires_on <= today + timedelta(days=expiring_window_days):
         return ImmunizationStatus.EXPIRING
-    return ImmunizationStatus.VALID
+
+    return ImmunizationStatus.CURRENT
 
 
 async def list_immunization_types(
@@ -56,7 +64,7 @@ async def list_immunization_types(
         .order_by(ImmunizationType.created_at.desc())
     )
     result = await session.execute(stmt)
-    return result.scalars().unique().all()
+    return result.scalars().all()
 
 
 async def get_immunization_type(
@@ -82,10 +90,8 @@ async def create_immunization_type(
     immunization_type = ImmunizationType(
         account_id=account_id,
         name=payload.name,
-        description=payload.description,
-        validity_days=payload.validity_days,
-        reminder_days_before=payload.reminder_days_before,
-        is_required=payload.is_required,
+        required=payload.required,
+        default_valid_days=payload.default_valid_days,
     )
     session.add(immunization_type)
     await session.commit()
@@ -93,243 +99,201 @@ async def create_immunization_type(
     return immunization_type
 
 
-async def update_immunization_type(
-    session: AsyncSession,
+def _project_record_status(
+    record: ImmunizationRecord,
     *,
-    immunization_type: ImmunizationType,
-    payload: ImmunizationTypeUpdate,
-) -> ImmunizationType:
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(immunization_type, field, value)
-    session.add(immunization_type)
-    await session.commit()
-    await session.refresh(immunization_type)
-    return immunization_type
+    status: ImmunizationStatus,
+) -> ImmunizationRecordStatus:
+    record_read = ImmunizationRecordRead.model_validate(record)
+    return ImmunizationRecordStatus(
+        record=record_read,
+        is_pending=status == ImmunizationStatus.PENDING,
+        is_current=status == ImmunizationStatus.CURRENT,
+        is_expiring=status == ImmunizationStatus.EXPIRING,
+        is_expired=status == ImmunizationStatus.EXPIRED,
+        is_required=record.immunization_type.required,
+    )
 
 
-async def delete_immunization_type(
-    session: AsyncSession,
+def _maybe_apply_default_expiry(
     *,
+    record: ImmunizationRecord,
     immunization_type: ImmunizationType,
 ) -> None:
-    await session.delete(immunization_type)
-    await session.commit()
+    """Populate expires_on if omitted and type defines a validity window."""
 
-
-async def _maybe_create_document(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    uploaded_by_user_id: uuid.UUID | None,
-    document_payload: DocumentCreate | None,
-) -> Document | None:
-    if document_payload is None:
-        return None
-    return await document_service.create_document(
-        session,
-        account_id=account_id,
-        uploaded_by_user_id=uploaded_by_user_id,
-        payload=document_payload,
+    if record.expires_on is not None:
+        return
+    if immunization_type.default_valid_days is None:
+        return
+    record.expires_on = record.issued_on + timedelta(
+        days=immunization_type.default_valid_days
     )
 
 
-async def create_immunization_record(
+async def create_record_for_pet(
     session: AsyncSession,
     *,
     account_id: uuid.UUID,
+    pet_id: uuid.UUID,
     payload: ImmunizationRecordCreate,
-    uploaded_by_user_id: uuid.UUID | None,
+    created_by: User,
 ) -> ImmunizationRecord:
     immunization_type = await get_immunization_type(
-        session, account_id=account_id, type_id=payload.immunization_type_id
+        session, account_id=account_id, type_id=payload.type_id
     )
     if immunization_type is None:
         raise ValueError("Immunization type not found for account")
 
     pet = await session.get(
         Pet,
-        payload.pet_id,
-        options=[selectinload(Pet.owner).selectinload(OwnerProfile.user)],
+        pet_id,
+        options=[joinedload(Pet.owner).joinedload(OwnerProfile.user)],
     )
-    if pet is None or pet.owner.user.account_id != account_id:  # type: ignore[union-attr]
-        raise ValueError("Pet not found for account")
-
-    document = await _maybe_create_document(
-        session,
-        account_id=account_id,
-        uploaded_by_user_id=uploaded_by_user_id,
-        document_payload=payload.document,
-    )
-
-    status = _determine_status(
-        expires_on=payload.expires_on,
-        reminder_days=immunization_type.reminder_days_before,
-    )
+    if pet is None or pet.owner is None or pet.owner.user is None:
+        raise ValueError("Pet not found")
+    if pet.owner.user.account_id != account_id:
+        raise ValueError("Pet does not belong to account")
 
     record = ImmunizationRecord(
         account_id=account_id,
-        pet_id=payload.pet_id,
-        immunization_type_id=payload.immunization_type_id,
-        document_id=document.id if document else payload.document_id,
-        received_on=payload.received_on,
+        pet_id=pet_id,
+        type_id=payload.type_id,
+        issued_on=payload.issued_on,
         expires_on=payload.expires_on,
         notes=payload.notes,
-        status=status,
+        verified_by_user_id=created_by.id if payload.verified else None,
     )
+
+    _maybe_apply_default_expiry(record=record, immunization_type=immunization_type)
+
+    record.status = compute_status(
+        record,
+        reference_date=payload.issued_on,
+    )
+
     session.add(record)
     await session.commit()
     await session.refresh(record)
     return record
 
 
-async def get_immunization_record(
+async def status_for_pet(
     session: AsyncSession,
     *,
     account_id: uuid.UUID,
-    record_id: uuid.UUID,
-) -> ImmunizationRecord | None:
-    stmt = (
+    pet_id: uuid.UUID,
+    expiring_window_days: int = DEFAULT_EXPIRING_WINDOW_DAYS,
+) -> list[ImmunizationRecordStatus]:
+    stmt: Select[tuple[ImmunizationRecord]] = (
         select(ImmunizationRecord)
-        .options(
-            selectinload(ImmunizationRecord.immunization_type),
-            selectinload(ImmunizationRecord.document),
-        )
+        .options(joinedload(ImmunizationRecord.immunization_type))
         .where(
             ImmunizationRecord.account_id == account_id,
-            ImmunizationRecord.id == record_id,
+            ImmunizationRecord.pet_id == pet_id,
         )
+        .order_by(ImmunizationRecord.created_at.desc())
     )
     result = await session.execute(stmt)
-    return result.scalars().unique().one_or_none()
+    records = result.scalars().all()
 
-
-async def list_immunization_records(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    pet_id: uuid.UUID | None = None,
-    status: ImmunizationStatus | None = None,
-) -> Sequence[ImmunizationRecord]:
-    stmt = (
-        select(ImmunizationRecord)
-        .options(
-            selectinload(ImmunizationRecord.immunization_type),
-            selectinload(ImmunizationRecord.document),
-        )
-        .where(ImmunizationRecord.account_id == account_id)
-        .order_by(ImmunizationRecord.received_on.desc())
-    )
-    if pet_id is not None:
-        stmt = stmt.where(ImmunizationRecord.pet_id == pet_id)
-    if status is not None:
-        stmt = stmt.where(ImmunizationRecord.status == status)
-    result = await session.execute(stmt)
-    return result.scalars().unique().all()
-
-
-async def update_immunization_record(
-    session: AsyncSession,
-    *,
-    record: ImmunizationRecord,
-    payload: ImmunizationRecordUpdate,
-    account_id: uuid.UUID,
-    uploaded_by_user_id: uuid.UUID | None,
-) -> ImmunizationRecord:
-    if record.account_id != account_id:
-        raise ValueError("Immunization record does not belong to the provided account")
-
-    updates = payload.model_dump(exclude_unset=True)
-    if "document_id" in updates:
-        record.document_id = updates.pop("document_id")
-    if payload.notes is not None:
-        record.notes = payload.notes
-    if payload.received_on is not None:
-        record.received_on = payload.received_on
-    if payload.expires_on is not None:
-        record.expires_on = payload.expires_on
-    if payload.status is not None:
-        record.status = payload.status
-
-    if payload.status is None and (payload.expires_on is not None):
-        record.status = _determine_status(
-            expires_on=record.expires_on,
-            reminder_days=record.immunization_type.reminder_days_before,
-        )
-
-    if payload.document is not None:
-        # allow updating document metadata via payload
-        document = await _maybe_create_document(
-            session,
-            account_id=account_id,
-            uploaded_by_user_id=uploaded_by_user_id,
-            document_payload=payload.document,
-        )
-        record.document_id = document.id if document else record.document_id
-
-    session.add(record)
-    await session.commit()
-    await session.refresh(record)
-    return record
-
-
-async def delete_immunization_record(
-    session: AsyncSession,
-    *,
-    record: ImmunizationRecord,
-) -> None:
-    await session.delete(record)
-    await session.commit()
-
-
-async def evaluate_immunizations(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    background_tasks: BackgroundTasks | None = None,
-) -> list[ImmunizationRecord]:
-    today = datetime.now(UTC)
-    stmt = (
-        select(ImmunizationRecord)
-        .options(
-            selectinload(ImmunizationRecord.immunization_type),
-            selectinload(ImmunizationRecord.pet)
-            .selectinload(Pet.owner)
-            .selectinload(OwnerProfile.user),
-        )
-        .where(ImmunizationRecord.account_id == account_id)
-    )
-    result = await session.execute(stmt)
-    records = result.scalars().unique().all()
-    updated: list[ImmunizationRecord] = []
+    statuses: list[ImmunizationRecordStatus] = []
+    dirty = False
     for record in records:
-        immunization_type = record.immunization_type
-        new_status = _determine_status(
-            expires_on=record.expires_on,
-            reminder_days=immunization_type.reminder_days_before,
+        status = compute_status(
+            record,
+            expiring_window_days=expiring_window_days,
         )
-        if record.status != new_status:
-            record.status = new_status
-            updated.append(record)
-        record.last_evaluated_at = today
+        if record.status != status:
+            record.status = status
+            dirty = True
+        statuses.append(_project_record_status(record, status=status))
 
-        should_notify = False
-        if new_status in (ImmunizationStatus.EXPIRING, ImmunizationStatus.EXPIRED):
-            if (
-                not record.reminder_sent_at
-                or record.reminder_sent_at.date() < today.date()
-            ):
-                should_notify = True
-        if should_notify and background_tasks is not None:
-            owner_user: User | None = None
-            if record.pet.owner:
-                owner_user = record.pet.owner.user
-            if owner_user:
-                notification_service.notify_immunization_alert(
-                    record=record,
-                    owner_user=owner_user,
-                    background_tasks=background_tasks,
-                )
-                record.reminder_sent_at = today
-    session.add_all(records)
-    await session.commit()
-    return updated
+    if dirty:
+        await session.commit()
+
+    return statuses
+
+
+async def status_for_owner(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    expiring_window_days: int = DEFAULT_EXPIRING_WINDOW_DAYS,
+) -> list[ImmunizationRecordStatus]:
+    stmt = (
+        select(ImmunizationRecord)
+        .join(Pet, Pet.id == ImmunizationRecord.pet_id)
+        .options(joinedload(ImmunizationRecord.immunization_type))
+        .where(
+            ImmunizationRecord.account_id == account_id,
+            Pet.owner_id == owner_id,
+        )
+        .order_by(ImmunizationRecord.created_at.desc())
+    )
+    result = await session.execute(stmt)
+    records = result.scalars().all()
+
+    statuses: list[ImmunizationRecordStatus] = []
+    dirty = False
+    for record in records:
+        status = compute_status(
+            record,
+            expiring_window_days=expiring_window_days,
+        )
+        if record.status != status:
+            record.status = status
+            dirty = True
+        statuses.append(_project_record_status(record, status=status))
+
+    if dirty:
+        await session.commit()
+
+    return statuses
+
+
+async def recompute_for_account(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    expiring_window_days: int = DEFAULT_EXPIRING_WINDOW_DAYS,
+) -> list[ImmunizationRecord]:
+    stmt = (
+        select(ImmunizationRecord)
+        .options(joinedload(ImmunizationRecord.immunization_type))
+        .where(ImmunizationRecord.account_id == account_id)
+    )
+    result = await session.execute(stmt)
+    records = result.scalars().all()
+
+    dirty_records: list[ImmunizationRecord] = []
+    dirty = False
+    for record in records:
+        status = compute_status(
+            record,
+            expiring_window_days=expiring_window_days,
+        )
+        if record.status != status:
+            record.status = status
+            dirty_records.append(record)
+            dirty = True
+
+    if dirty:
+        await session.commit()
+
+    return dirty_records
+
+
+async def get_owner_profile(
+    session: AsyncSession,
+    owner_id: uuid.UUID,
+    *,
+    account_id: uuid.UUID,
+) -> OwnerProfile | None:
+    stmt = select(OwnerProfile).where(
+        OwnerProfile.id == owner_id,
+        OwnerProfile.account_id == account_id,
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()

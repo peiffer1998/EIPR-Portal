@@ -13,9 +13,13 @@ from . import (
     agreements,
     icons,
     invoices,
+    payments,
     location_hours,
     locations,
     medication,
+    feeding_board,
+    medication_board,
+    run_cards,
     owners,
     packages,
     pets,
@@ -40,6 +44,10 @@ router.include_router(
 router.include_router(feeding.router, tags=["feeding"])
 router.include_router(medication.router, tags=["medication"])
 router.include_router(invoices.router, tags=["invoices"])
+router.include_router(invoices.deposit_router, tags=["deposits"])
+# BEGIN BILLING ROUTES
+router.include_router(payments.router, prefix="/payments", tags=["payments"])
+# END BILLING ROUTES
 router.include_router(
     immunizations.router, prefix="/immunizations", tags=["immunizations"]
 )
@@ -52,5 +60,12 @@ router.include_router(packages.router, tags=["packages"])
 router.include_router(waitlist.router, tags=["waitlist"])
 router.include_router(location_hours.router, tags=["location-hours"])
 router.include_router(documents.router, tags=["documents"])
+# BEGIN OPS_P5 ROUTES
+router.include_router(feeding_board.router, prefix="/feeding", tags=["feeding"])
+router.include_router(
+    medication_board.router, prefix="/medication", tags=["medication"]
+)
+router.include_router(run_cards.router, tags=["run-cards"])
+# END OPS_P5 ROUTES
 
 __all__ = ["router"]

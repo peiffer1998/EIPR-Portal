@@ -31,9 +31,6 @@ def _base_pet_query(account_id: uuid.UUID) -> Select[tuple[Pet]]:
             selectinload(Pet.immunization_records).selectinload(
                 ImmunizationRecord.immunization_type
             ),
-            selectinload(Pet.immunization_records).selectinload(
-                ImmunizationRecord.document
-            ),
             selectinload(Pet.icon_assignments).selectinload(PetIcon.icon),
         )
         .where(User.account_id == account_id)

@@ -15,22 +15,7 @@ from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet
 from app.models.reservation import Reservation
 from app.schemas.invoice import InvoiceItemCreate
-
-
-async def _ensure_reservation(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    reservation_id: uuid.UUID,
-) -> Reservation:
-    reservation = await session.get(
-        Reservation,
-        reservation_id,
-        options=[selectinload(Reservation.invoice).selectinload(Invoice.items)],
-    )
-    if reservation is None or reservation.account_id != account_id:
-        raise ValueError("Reservation not found for account")
-    return reservation
+from app.services import invoice_service
 
 
 async def list_invoices(
@@ -89,28 +74,8 @@ async def generate_invoice_for_reservation(
     account_id: uuid.UUID,
     reservation_id: uuid.UUID,
 ) -> Invoice:
-    reservation = await _ensure_reservation(
+    return await invoice_service.create_invoice_for_reservation(
         session, account_id=account_id, reservation_id=reservation_id
-    )
-    if reservation.invoice is not None:
-        raise ValueError("Invoice already exists for reservation")
-
-    invoice = Invoice(
-        account_id=account_id,
-        reservation_id=reservation_id,
-        status=InvoiceStatus.PENDING,
-    )
-    base_item = InvoiceItem(
-        description="Reservation base rate",
-        amount=reservation.base_rate,
-    )
-    invoice.items.append(base_item)
-    invoice.total_amount = reservation.base_rate
-
-    session.add(invoice)
-    await session.commit()
-    return await _get_required_invoice(
-        session, account_id=account_id, invoice_id=invoice.id
     )
 
 
@@ -126,8 +91,10 @@ async def add_invoice_item(
     invoice.items.append(
         InvoiceItem(description=payload.description, amount=payload.amount)
     )
-    await _recalculate_total(session, invoice)
-    await session.commit()
+    await session.flush()
+    await invoice_service.compute_totals(
+        session, account_id=account_id, invoice_id=invoice.id
+    )
     return await _get_required_invoice(
         session, account_id=account_id, invoice_id=invoice.id
     )
@@ -191,11 +158,3 @@ async def list_outstanding_invoices(
     return await list_invoices(
         session, account_id=account_id, status=InvoiceStatus.PENDING
     )
-
-
-async def _recalculate_total(session: AsyncSession, invoice: Invoice) -> None:
-    await session.flush()
-    await session.refresh(invoice, attribute_names=["items"])
-    total = sum((item.amount for item in invoice.items), start=Decimal("0"))
-    invoice.total_amount = total
-    session.add(invoice)

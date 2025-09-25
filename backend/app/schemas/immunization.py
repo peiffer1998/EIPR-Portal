@@ -1,4 +1,4 @@
-"""Pydantic schemas for immunization management."""
+"""Pydantic schemas for health track immunizations."""
 
 from __future__ import annotations
 
@@ -8,27 +8,16 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.immunization import ImmunizationStatus
-from app.schemas.document import DocumentCreate, DocumentRead
 
 
 class ImmunizationTypeBase(BaseModel):
-    name: str
-    description: str | None = Field(default=None, max_length=512)
-    validity_days: int | None = Field(default=None, ge=0)
-    reminder_days_before: int = Field(default=30, ge=0)
-    is_required: bool = True
+    name: str = Field(max_length=120)
+    required: bool = Field(default=False)
+    default_valid_days: int | None = Field(default=None, ge=0)
 
 
 class ImmunizationTypeCreate(ImmunizationTypeBase):
     pass
-
-
-class ImmunizationTypeUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = Field(default=None, max_length=512)
-    validity_days: int | None = Field(default=None, ge=0)
-    reminder_days_before: int | None = Field(default=None, ge=0)
-    is_required: bool | None = None
 
 
 class ImmunizationTypeRead(ImmunizationTypeBase):
@@ -40,43 +29,37 @@ class ImmunizationTypeRead(ImmunizationTypeBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ImmunizationRecordBase(BaseModel):
-    pet_id: uuid.UUID
-    immunization_type_id: uuid.UUID
-    received_on: date
+class ImmunizationRecordCreate(BaseModel):
+    type_id: uuid.UUID
+    issued_on: date
     expires_on: date | None = None
-    notes: str | None = Field(default=None, max_length=512)
-    document_id: uuid.UUID | None = None
-    document: DocumentCreate | None = None
-
-
-class ImmunizationRecordCreate(ImmunizationRecordBase):
-    pass
-
-
-class ImmunizationRecordUpdate(BaseModel):
-    received_on: date | None = None
-    expires_on: date | None = None
-    status: ImmunizationStatus | None = None
-    notes: str | None = Field(default=None, max_length=512)
-    document_id: uuid.UUID | None = None
-    document: DocumentCreate | None = None
+    notes: str | None = Field(default=None, max_length=1024)
+    verified: bool = False
 
 
 class ImmunizationRecordRead(BaseModel):
     id: uuid.UUID
     account_id: uuid.UUID
     pet_id: uuid.UUID
-    immunization_type_id: uuid.UUID
+    type_id: uuid.UUID
     status: ImmunizationStatus
-    received_on: date
+    issued_on: date
     expires_on: date | None
+    verified_by_user_id: uuid.UUID | None
     notes: str | None
-    last_evaluated_at: datetime | None
-    reminder_sent_at: datetime | None
     created_at: datetime
     updated_at: datetime
     immunization_type: ImmunizationTypeRead | None = None
-    document: DocumentRead | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ImmunizationRecordStatus(BaseModel):
+    record: ImmunizationRecordRead
+    is_pending: bool
+    is_current: bool
+    is_expiring: bool
+    is_expired: bool
+    is_required: bool
 
     model_config = ConfigDict(from_attributes=True)

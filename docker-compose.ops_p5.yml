@@ -1,0 +1,14 @@
+services:
+  api:
+    env_file: [.env.ops_p5]
+    ports: ["8002:8000"]
+  db:
+    environment:
+      POSTGRES_DB: eipr_ops_p5
+    ports: ["5434:5432"]
+  redis:
+    ports: ["6381:6379"]
+  mailhog:
+    ports: ["8027:8025"]
+  minio:
+    ports: ["9004:9000", "9005:9001"]
