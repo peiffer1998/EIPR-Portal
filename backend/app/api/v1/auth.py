@@ -9,15 +9,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db_session
 from app.models.account import Account
 from app.schemas.auth import (
+    InvitationAcceptResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
     PasswordResetTokenResponse,
     RegistrationRequest,
     RegistrationResponse,
+    StaffInvitationAcceptRequest,
     Token,
 )
 from app.schemas.owner import OwnerRead
-from app.services import notification_service, owner_service, password_reset_service, user_service
+from app.schemas.user import UserRead
+from app.services import notification_service, owner_service, password_reset_service, staff_invitation_service, user_service
 from app.services.auth_service import authenticate_user, create_access_token_for_user
 
 router = APIRouter()
@@ -118,3 +121,38 @@ async def password_reset_confirm(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return None
+
+
+@router.post("/invitations/accept", response_model=InvitationAcceptResponse, summary="Accept staff invitation")
+async def accept_staff_invitation(
+    payload: StaffInvitationAcceptRequest,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    background_tasks: BackgroundTasks,
+) -> InvitationAcceptResponse:
+    try:
+        _invitation, user = await staff_invitation_service.accept_invitation(
+            session,
+            token=payload.token,
+            password=payload.password,
+            first_name=payload.first_name,
+            last_name=payload.last_name,
+            phone_number=payload.phone_number,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    access_token = await create_access_token_for_user(user)
+    subject, body = notification_service.build_welcome_email(first_name=user.first_name)
+    notification_service.schedule_email(
+        background_tasks,
+        recipients=[user.email],
+        subject=subject,
+        body=body,
+    )
+    if user.phone_number:
+        notification_service.schedule_sms(
+            background_tasks,
+            phone_numbers=[user.phone_number],
+            message="Your staff account is ready at Eastern Iowa Pet Resort.",
+        )
+    return InvitationAcceptResponse(token=Token(access_token=access_token), user=UserRead.model_validate(user))

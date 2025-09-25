@@ -52,6 +52,24 @@ python -m scripts.seed_capacity_rules
 - `tests/` – automated tests.
 - `pyproject.toml` – dependency and build configuration.
 
+## Feature Highlights
+
+- **Staff onboarding** – invite staff, manage roles/status, and accept invitations via `/api/v1/users/invitations` and `/api/v1/auth/invitations/accept`.
+- **Background notifications** – email/SMS stubs send booking, check-in, invoice, payment, and password reset updates without blocking API responses.
+- **Analytics** – `/api/v1/reports/occupancy` and `/api/v1/reports/revenue` provide capacity and financial reporting for staff roles.
+- **Service catalog & packages** – manage services, retail items, and multi-use packages with `/api/v1/service-items` and `/api/v1/packages`.
+- **Waitlists & scheduling** – capture overflow demand through `/api/v1/waitlist` and maintain operating hours/closures under `/api/v1/locations/{location_id}/hours|closures`.
+- **Document metadata** – attach vaccination or policy documents to owners/pets via `/api/v1/documents`.
+
+## Migration History
+
+Recent revisions of note:
+
+- `0007_staff_invitations` – adds staff invitation workflow tables.
+- `0008_service_extensions` – adds service catalog, packages, waitlists, location hours/closures, and document metadata.
+
+Apply migrations with `alembic upgrade head` after pulling updates.
+
 ## Tooling
 
 - Formatting & linting: `ruff`

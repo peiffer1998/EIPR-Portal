@@ -1,11 +1,13 @@
 """Schema exports."""
 from app.schemas.account import AccountCreate, AccountRead, AccountUpdate
 from app.schemas.auth import (
+    InvitationAcceptResponse,
     PasswordResetConfirm,
     PasswordResetRequest,
     PasswordResetTokenResponse,
     RegistrationRequest,
     RegistrationResponse,
+    StaffInvitationAcceptRequest,
     Token,
 )
 from app.schemas.capacity import (
@@ -38,9 +40,32 @@ from app.schemas.owner import (
     OwnerUpdate,
 )
 from app.schemas.pet import PetCreate, PetRead, PetUpdate
+from app.schemas.service_catalog import (
+    ServiceCatalogItemCreate,
+    ServiceCatalogItemRead,
+    ServiceCatalogItemUpdate,
+)
+from app.schemas.package import (
+    ServicePackageCreate,
+    ServicePackageRead,
+    ServicePackageUpdate,
+)
+from app.schemas.waitlist import (
+    WaitlistEntryCreate,
+    WaitlistEntryRead,
+    WaitlistStatusUpdate,
+)
+from app.schemas.location_hours import (
+    LocationClosureCreate,
+    LocationClosureRead,
+    LocationHourCreate,
+    LocationHourRead,
+    LocationHourUpdate,
+)
+from app.schemas.document import DocumentCreate, DocumentRead
 from app.schemas.reservation import ReservationCreate, ReservationRead, ReservationUpdate
 from app.schemas.scheduling import AvailabilityRequest, AvailabilityResponse, DailyAvailability
-from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.user import StaffInvitationCreate, StaffInvitationRead, UserCreate, UserRead, UserUpdate
 
 __all__ = [
     "AccountCreate",
@@ -51,6 +76,8 @@ __all__ = [
     "PasswordResetRequest",
     "PasswordResetTokenResponse",
     "PasswordResetConfirm",
+    "StaffInvitationAcceptRequest",
+    "InvitationAcceptResponse",
     "Token",
     "LocationCapacityRuleCreate",
     "LocationCapacityRuleRead",
@@ -71,6 +98,8 @@ __all__ = [
     "MedicationScheduleCreate",
     "MedicationScheduleRead",
     "MedicationScheduleUpdate",
+    "StaffInvitationCreate",
+    "StaffInvitationRead",
     "UserCreate",
     "UserRead",
     "UserUpdate",
@@ -78,6 +107,22 @@ __all__ = [
     "OwnerRead",
     "OwnerReservationRequest",
     "OwnerUpdate",
+    "ServiceCatalogItemCreate",
+    "ServiceCatalogItemRead",
+    "ServiceCatalogItemUpdate",
+    "ServicePackageCreate",
+    "ServicePackageRead",
+    "ServicePackageUpdate",
+    "WaitlistEntryCreate",
+    "WaitlistEntryRead",
+    "WaitlistStatusUpdate",
+    "LocationHourCreate",
+    "LocationHourRead",
+    "LocationHourUpdate",
+    "LocationClosureCreate",
+    "LocationClosureRead",
+    "DocumentCreate",
+    "DocumentRead",
     "PetCreate",
     "PetRead",
     "PetUpdate",

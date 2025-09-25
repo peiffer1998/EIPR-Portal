@@ -9,6 +9,12 @@ from app.models.medication_schedule import MedicationSchedule
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet, PetType
 from app.models.reservation import Reservation, ReservationStatus, ReservationType
+from app.models.staff_invitation import StaffInvitation, StaffInvitationStatus
+from app.models.service_catalog_item import ServiceCatalogItem, ServiceCatalogKind
+from app.models.service_package import ServicePackage
+from app.models.waitlist_entry import WaitlistEntry, WaitlistStatus
+from app.models.location_hours import LocationHour, LocationClosure
+from app.models.document import Document
 from app.models.user import User, UserRole, UserStatus
 
 __all__ = [
@@ -24,6 +30,16 @@ __all__ = [
     "OwnerProfile",
     "Pet",
     "PetType",
+    "StaffInvitation",
+    "StaffInvitationStatus",
+    "ServiceCatalogItem",
+    "ServiceCatalogKind",
+    "ServicePackage",
+    "WaitlistEntry",
+    "WaitlistStatus",
+    "LocationHour",
+    "LocationClosure",
+    "Document",
     "Reservation",
     "ReservationStatus",
     "ReservationType",

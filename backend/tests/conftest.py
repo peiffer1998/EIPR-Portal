@@ -91,6 +91,18 @@ async def app_context(reset_database: AsyncIterator[None], db_url: str) -> Async
             status=UserStatus.ACTIVE,
         )
         session.add(manager)
+
+        superadmin_password = "Sup3rPass!"
+        superadmin = User(
+            account_id=account.id,
+            email="seed.superadmin@example.com",
+            hashed_password=get_password_hash(superadmin_password),
+            first_name="Sam",
+            last_name="Super",
+            role=UserRole.SUPERADMIN,
+            status=UserStatus.ACTIVE,
+        )
+        session.add(superadmin)
         await session.commit()
 
         context = {
@@ -99,6 +111,8 @@ async def app_context(reset_database: AsyncIterator[None], db_url: str) -> Async
             "location_id": location.id,
             "manager_email": manager.email,
             "manager_password": manager_password,
+            "superadmin_email": superadmin.email,
+            "superadmin_password": superadmin_password,
         }
 
     transport = ASGITransport(app=app)

@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +15,7 @@ from app.schemas.user import UserCreate, UserUpdate
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     """Return a user by email address."""
-    result = await session.execute(select(User).where(User.email == email))
+    result = await session.execute(select(User).where(User.email == email.lower()))
     return result.scalar_one_or_none()
 
 
@@ -24,12 +25,36 @@ async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def list_users(session: AsyncSession, *, skip: int = 0, limit: int = 50) -> list[User]:
-    """Return paginated users."""
-    result = await session.execute(
-        select(User).offset(skip).limit(limit).order_by(User.created_at.desc())
+async def get_user_for_account(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> User | None:
+    """Return a user scoped to an account."""
+    stmt = select(User).where(User.account_id == account_id, User.id == user_id)
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def list_users(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 50,
+) -> list[User]:
+    """Return paginated users for an account."""
+    stmt = (
+        select(User)
+        .where(User.account_id == account_id)
+        .options(selectinload(User.owner_profile))
+        .offset(skip)
+        .limit(limit)
+        .order_by(User.created_at.desc())
     )
-    return list(result.scalars().all())
+    result = await session.execute(stmt)
+    return list(result.scalars().unique().all())
 
 
 async def create_user(session: AsyncSession, payload: UserCreate) -> User:

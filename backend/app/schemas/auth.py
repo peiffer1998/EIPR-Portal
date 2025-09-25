@@ -6,6 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.owner import OwnerRead
+from app.schemas.user import UserRead
 
 
 class Token(BaseModel):
@@ -60,3 +61,20 @@ class PasswordResetConfirm(BaseModel):
 
     token: str
     new_password: str = Field(min_length=8)
+
+
+class StaffInvitationAcceptRequest(BaseModel):
+    """Payload to accept a staff invitation."""
+
+    token: str
+    password: str = Field(min_length=8)
+    first_name: str | None = None
+    last_name: str | None = None
+    phone_number: str | None = None
+
+
+class InvitationAcceptResponse(BaseModel):
+    """Response after accepting a staff invitation."""
+
+    token: Token
+    user: UserRead

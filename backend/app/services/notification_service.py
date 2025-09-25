@@ -104,6 +104,19 @@ def build_password_reset_email(*, token: str) -> tuple[str, str]:
     return subject, body
 
 
+def build_staff_invitation_email(*, first_name: str, inviter_name: str, role: str, token: str) -> tuple[str, str]:
+    subject = "You're invited to join Eastern Iowa Pet Resort"
+    body = (
+        f"Hi {first_name},\n\n"
+        f"{inviter_name} has invited you to join Eastern Iowa Pet Resort as a {role}. "
+        "Use the invitation token below to complete your account setup within the next few days.\n\n"
+        f"Invitation token: {token}\n"
+        "Visit the staff portal and submit this token along with your preferred password to finish activation.\n\n"
+        "If you weren't expecting this invite, you can safely ignore it."
+    )
+    return subject, body
+
+
 def _send_email(recipients: list[str], subject: str, body: str) -> None:
     settings = get_settings()
     if not settings.smtp_host or not settings.smtp_port:
