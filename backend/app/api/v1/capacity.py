@@ -10,10 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.models.user import User, UserRole
-from app.schemas.capacity import CapacityRuleCreate, CapacityRuleRead, CapacityRuleUpdate
+from app.schemas.capacity import (
+    LocationCapacityRuleCreate,
+    LocationCapacityRuleRead,
+    LocationCapacityRuleUpdate,
+)
 from app.services import capacity_service
 
-router = APIRouter()
+router = APIRouter(prefix="/locations/{location_id}/capacity-rules")
 
 
 def _assert_management_role(user: User) -> None:
@@ -22,15 +26,15 @@ def _assert_management_role(user: User) -> None:
 
 
 @router.get(
-    "/locations/{location_id}",
-    response_model=list[CapacityRuleRead],
+    "",
+    response_model=list[LocationCapacityRuleRead],
     summary="List capacity rules for a location",
 )
 async def list_capacity_rules(
     location_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> list[CapacityRuleRead]:
+) -> list[LocationCapacityRuleRead]:
     _assert_management_role(current_user)
     try:
         rules = await capacity_service.list_capacity_rules(
@@ -40,26 +44,29 @@ async def list_capacity_rules(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    return [CapacityRuleRead.model_validate(rule) for rule in rules]
+    return [LocationCapacityRuleRead.model_validate(rule) for rule in rules]
 
 
 @router.post(
     "",
-    response_model=CapacityRuleRead,
+    response_model=LocationCapacityRuleRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create capacity rule",
 )
 async def create_capacity_rule(
-    payload: CapacityRuleCreate,
+    location_id: uuid.UUID,
+    payload: LocationCapacityRuleCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> CapacityRuleRead:
+) -> LocationCapacityRuleRead:
     _assert_management_role(current_user)
+    if payload.location_id != location_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Location mismatch")
     try:
         rule = await capacity_service.create_capacity_rule(
             session,
             account_id=current_user.account_id,
-            location_id=payload.location_id,
+            location_id=location_id,
             reservation_type=payload.reservation_type,
             max_active=payload.max_active,
             waitlist_limit=payload.waitlist_limit,
@@ -67,28 +74,29 @@ async def create_capacity_rule(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rule already exists") from exc
-    return CapacityRuleRead.model_validate(rule)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rule already exists for reservation type") from exc
+    return LocationCapacityRuleRead.model_validate(rule)
 
 
 @router.patch(
     "/{rule_id}",
-    response_model=CapacityRuleRead,
+    response_model=LocationCapacityRuleRead,
     summary="Update capacity rule",
 )
 async def update_capacity_rule(
+    location_id: uuid.UUID,
     rule_id: uuid.UUID,
-    payload: CapacityRuleUpdate,
+    payload: LocationCapacityRuleUpdate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> CapacityRuleRead:
+) -> LocationCapacityRuleRead:
     _assert_management_role(current_user)
     rule = await capacity_service.get_capacity_rule(
         session,
         account_id=current_user.account_id,
         rule_id=rule_id,
     )
-    if rule is None:
+    if rule is None or rule.location_id != location_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found")
 
     try:
@@ -101,7 +109,7 @@ async def update_capacity_rule(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return CapacityRuleRead.model_validate(updated)
+    return LocationCapacityRuleRead.model_validate(updated)
 
 
 @router.delete(
@@ -110,6 +118,7 @@ async def update_capacity_rule(
     summary="Delete capacity rule",
 )
 async def delete_capacity_rule(
+    location_id: uuid.UUID,
     rule_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
@@ -120,7 +129,7 @@ async def delete_capacity_rule(
         account_id=current_user.account_id,
         rule_id=rule_id,
     )
-    if rule is None:
+    if rule is None or rule.location_id != location_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found")
     await capacity_service.delete_capacity_rule(
         session,

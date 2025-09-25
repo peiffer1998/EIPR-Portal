@@ -141,3 +141,17 @@ async def update_owner(
     await session.refresh(owner)
     await session.refresh(owner, attribute_names=["user"])
     return owner
+
+
+async def get_owner_by_user(
+    session: AsyncSession,
+    *,
+    user_id: uuid.UUID,
+) -> OwnerProfile | None:
+    """Return an owner profile by user identifier."""
+    result = await session.execute(
+        select(OwnerProfile)
+        .options(selectinload(OwnerProfile.user))
+        .where(OwnerProfile.user_id == user_id)
+    )
+    return result.scalars().unique().one_or_none()

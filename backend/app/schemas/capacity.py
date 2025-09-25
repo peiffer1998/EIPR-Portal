@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.reservation import ReservationType
 
 
-class CapacityRuleBase(BaseModel):
+class LocationCapacityRuleBase(BaseModel):
     """Shared fields for capacity rules."""
 
     reservation_type: ReservationType
@@ -17,20 +17,20 @@ class CapacityRuleBase(BaseModel):
     waitlist_limit: int | None = Field(default=None, ge=0)
 
 
-class CapacityRuleCreate(CapacityRuleBase):
+class LocationCapacityRuleCreate(LocationCapacityRuleBase):
     """Payload to create a capacity rule for a location."""
 
     location_id: uuid.UUID
 
 
-class CapacityRuleUpdate(BaseModel):
+class LocationCapacityRuleUpdate(BaseModel):
     """Mutable capacity rule fields."""
 
     max_active: int | None = Field(default=None, ge=0)
     waitlist_limit: int | None = Field(default=None, ge=0)
 
 
-class CapacityRuleRead(CapacityRuleBase):
+class LocationCapacityRuleRead(LocationCapacityRuleBase):
     """Serialized capacity rule response."""
 
     id: uuid.UUID

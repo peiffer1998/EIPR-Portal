@@ -10,9 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.models.user import User, UserRole
-from app.schemas.reservation import ReservationCreate, ReservationRead, ReservationUpdate
+from app.schemas.invoice import InvoiceRead
+from app.schemas.reservation import (
+    ReservationCheckInRequest,
+    ReservationCheckOutRequest,
+    ReservationCreate,
+    ReservationRead,
+    ReservationUpdate,
+)
 from app.schemas.scheduling import AvailabilityRequest, AvailabilityResponse
-from app.services import reservation_service
+from app.services import billing_service, reservation_service
 
 router = APIRouter()
 
@@ -103,6 +110,95 @@ async def update_reservation(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return ReservationRead.model_validate(updated)
+
+
+@router.post(
+    "/{reservation_id}/check-in",
+    response_model=ReservationRead,
+    summary="Check in reservation",
+)
+async def check_in_reservation(
+    reservation_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    payload: ReservationCheckInRequest | None = None,
+) -> ReservationRead:
+    _assert_staff_authority(current_user)
+    reservation = await reservation_service.get_reservation(
+        session,
+        account_id=current_user.account_id,
+        reservation_id=reservation_id,
+    )
+    if reservation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
+    payload = payload or ReservationCheckInRequest()
+    check_in_at = payload.resolve_timestamp()
+    try:
+        updated = await reservation_service.check_in_reservation(
+            session,
+            reservation=reservation,
+            account_id=current_user.account_id,
+            check_in_at=check_in_at,
+            kennel_id=payload.kennel_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return ReservationRead.model_validate(updated)
+
+
+@router.post(
+    "/{reservation_id}/check-out",
+    response_model=ReservationRead,
+    summary="Check out reservation",
+)
+async def check_out_reservation(
+    reservation_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    payload: ReservationCheckOutRequest | None = None,
+) -> ReservationRead:
+    _assert_staff_authority(current_user)
+    reservation = await reservation_service.get_reservation(
+        session,
+        account_id=current_user.account_id,
+        reservation_id=reservation_id,
+    )
+    if reservation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found")
+    payload = payload or ReservationCheckOutRequest()
+    check_out_at = payload.resolve_timestamp()
+    try:
+        updated = await reservation_service.check_out_reservation(
+            session,
+            reservation=reservation,
+            account_id=current_user.account_id,
+            check_out_at=check_out_at,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return ReservationRead.model_validate(updated)
+
+
+@router.post(
+    "/{reservation_id}/invoice",
+    response_model=InvoiceRead,
+    summary="Generate invoice for reservation",
+)
+async def generate_invoice(
+    reservation_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> InvoiceRead:
+    _assert_staff_authority(current_user)
+    try:
+        invoice = await billing_service.generate_invoice_for_reservation(
+            session,
+            account_id=current_user.account_id,
+            reservation_id=reservation_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return InvoiceRead.model_validate(invoice)
 
 
 @router.delete("/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete reservation")

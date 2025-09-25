@@ -81,6 +81,9 @@ async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
     reservation = create_resp.json()
     reservation_id = reservation["id"]
     assert reservation["status"] == "requested"
+    assert reservation["check_in_at"] is None
+    assert reservation["check_out_at"] is None
+    assert reservation["kennel_id"] is None
 
     # Promote to confirmed
     confirm_resp = await client.patch(
@@ -99,22 +102,35 @@ async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
     )
     assert invalid_resp.status_code == 400
 
-    # Valid transitions to checked_in then checked_out
-    check_in_resp = await client.patch(
-        f"/api/v1/reservations/{reservation_id}",
-        json={"status": "checked_in"},
+    # Valid transitions via dedicated check-in/out endpoints
+    kennel_id = str(uuid.uuid4())
+    check_in_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/check-in",
+        json={"kennel_id": kennel_id},
         headers=headers,
     )
     assert check_in_resp.status_code == 200
-    assert check_in_resp.json()["status"] == "checked_in"
+    check_in_body = check_in_resp.json()
+    assert check_in_body["status"] == "checked_in"
+    assert check_in_body["check_in_at"] is not None
+    assert check_in_body["kennel_id"] == kennel_id
 
-    check_out_resp = await client.patch(
-        f"/api/v1/reservations/{reservation_id}",
-        json={"status": "checked_out"},
+    checkout_time = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    check_out_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/check-out",
+        json={"check_out_at": checkout_time},
         headers=headers,
     )
     assert check_out_resp.status_code == 200
-    assert check_out_resp.json()["status"] == "checked_out"
+    check_out_body = check_out_resp.json()
+    assert check_out_body["status"] == "checked_out"
+    response_checkout = datetime.fromisoformat(check_out_body["check_out_at"])
+    if response_checkout.tzinfo is None:
+        response_checkout = response_checkout.replace(tzinfo=timezone.utc)
+    expected_checkout = datetime.fromisoformat(checkout_time)
+    if expected_checkout.tzinfo is None:
+        expected_checkout = expected_checkout.replace(tzinfo=timezone.utc)
+    assert response_checkout == expected_checkout
 
     list_resp = await client.get("/api/v1/reservations", headers=headers)
     assert list_resp.status_code == 200

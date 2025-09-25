@@ -6,6 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.models.reservation import ReservationType
 from app.schemas.user import UserRead
 
 
@@ -51,3 +52,14 @@ class OwnerRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OwnerReservationRequest(BaseModel):
+    """Owner-initiated reservation payload."""
+
+    pet_id: uuid.UUID
+    location_id: uuid.UUID
+    reservation_type: ReservationType
+    start_at: datetime
+    end_at: datetime
+    notes: str | None = None

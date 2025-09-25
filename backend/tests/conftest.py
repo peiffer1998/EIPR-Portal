@@ -95,6 +95,7 @@ async def app_context(reset_database: AsyncIterator[None], db_url: str) -> Async
 
         context = {
             "account_id": account.id,
+            "account_slug": account.slug,
             "location_id": location.id,
             "manager_email": manager.email,
             "manager_password": manager_password,

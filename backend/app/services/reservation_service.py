@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.invoice import Invoice
 from app.models.location import Location
 from app.models.location_capacity import LocationCapacityRule
 from app.models.owner_profile import OwnerProfile
@@ -36,6 +37,9 @@ _ACTIVE_RESERVATION_STATUSES = {
 }
 
 
+_UNSET = object()
+
+
 def _coerce_utc(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
@@ -50,6 +54,9 @@ def _base_reservation_query(account_id: uuid.UUID):
             .selectinload(Pet.owner)
             .selectinload(OwnerProfile.user),
             selectinload(Reservation.location),
+            selectinload(Reservation.feeding_schedules),
+            selectinload(Reservation.medication_schedules),
+            selectinload(Reservation.invoice).selectinload(Invoice.items),
         )
         .where(Reservation.account_id == account_id)
         .order_by(Reservation.start_at.desc())
@@ -124,6 +131,7 @@ async def create_reservation(
     base_rate: Decimal,
     status: ReservationStatus = ReservationStatus.REQUESTED,
     notes: str | None = None,
+    kennel_id: uuid.UUID | None = None,
 ) -> Reservation:
     _validate_times(start_at, end_at)
     await _validate_pet(session, account_id=account_id, pet_id=pet_id)
@@ -148,6 +156,7 @@ async def create_reservation(
         end_at=end_at,
         base_rate=base_rate,
         notes=notes,
+        kennel_id=kennel_id,
     )
     session.add(reservation)
     try:
@@ -156,6 +165,7 @@ async def create_reservation(
         await session.rollback()
         raise
     await session.refresh(reservation)
+    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
     return reservation
 
 
@@ -180,6 +190,7 @@ async def update_reservation(
     base_rate: Decimal | None = None,
     status: ReservationStatus | None = None,
     notes: str | None = None,
+    kennel_id: uuid.UUID | None | object = _UNSET,
 ) -> Reservation:
     if reservation.account_id != account_id:
         raise ValueError("Reservation does not belong to the provided account")
@@ -212,6 +223,9 @@ async def update_reservation(
     if notes is not None:
         reservation.notes = notes
 
+    if kennel_id is not _UNSET:
+        reservation.kennel_id = kennel_id
+
     await _ensure_capacity_available(
         session,
         account_id=account_id,
@@ -226,6 +240,7 @@ async def update_reservation(
     session.add(reservation)
     await session.commit()
     await session.refresh(reservation)
+    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
     return reservation
 
 
@@ -239,6 +254,46 @@ async def delete_reservation(
         raise ValueError("Reservation does not belong to the provided account")
     await session.delete(reservation)
     await session.commit()
+
+
+async def check_in_reservation(
+    session: AsyncSession,
+    *,
+    reservation: Reservation,
+    account_id: uuid.UUID,
+    check_in_at: datetime,
+    kennel_id: uuid.UUID | None = None,
+) -> Reservation:
+    if reservation.account_id != account_id:
+        raise ValueError("Reservation does not belong to the provided account")
+    _validate_status_transition(reservation.status, ReservationStatus.CHECKED_IN)
+    reservation.status = ReservationStatus.CHECKED_IN
+    reservation.check_in_at = _coerce_utc(check_in_at)
+    reservation.check_out_at = None
+    if kennel_id is not None:
+        reservation.kennel_id = kennel_id
+    await session.commit()
+    await session.refresh(reservation)
+    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
+    return reservation
+
+
+async def check_out_reservation(
+    session: AsyncSession,
+    *,
+    reservation: Reservation,
+    account_id: uuid.UUID,
+    check_out_at: datetime,
+) -> Reservation:
+    if reservation.account_id != account_id:
+        raise ValueError("Reservation does not belong to the provided account")
+    _validate_status_transition(reservation.status, ReservationStatus.CHECKED_OUT)
+    reservation.status = ReservationStatus.CHECKED_OUT
+    reservation.check_out_at = _coerce_utc(check_out_at)
+    await session.commit()
+    await session.refresh(reservation)
+    await session.refresh(reservation, attribute_names=["feeding_schedules", "medication_schedules"])
+    return reservation
 
 
 async def _ensure_capacity_available(

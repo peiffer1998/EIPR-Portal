@@ -62,7 +62,13 @@ class Reservation(TimestampMixin, Base):
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     base_rate: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     notes: Mapped[str | None] = mapped_column(String(1024))
+    kennel_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    check_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    check_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     account: Mapped["Account"] = relationship("Account")
     location: Mapped["Location"] = relationship("Location", back_populates="reservations")
     pet: Mapped["Pet"] = relationship("Pet", back_populates="reservations")
+    feeding_schedules: Mapped[list["FeedingSchedule"]] = relationship("FeedingSchedule", back_populates="reservation", cascade="all, delete-orphan")
+    medication_schedules: Mapped[list["MedicationSchedule"]] = relationship("MedicationSchedule", back_populates="reservation", cascade="all, delete-orphan")
+    invoice: Mapped["Invoice | None"] = relationship("Invoice", back_populates="reservation", uselist=False)
