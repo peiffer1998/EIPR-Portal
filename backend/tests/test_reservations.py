@@ -24,11 +24,17 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-async def _create_owner_and_pet(client: AsyncClient, headers: dict[str, str], location_id: str) -> dict[str, str]:
+async def _create_owner_and_pet(
+    client: AsyncClient,
+    headers: dict[str, str],
+    location_id: str,
+    *,
+    email_prefix: str = "taylor",
+) -> dict[str, str]:
     owner_payload = {
-        "first_name": "Taylor",
+        "first_name": email_prefix.capitalize(),
         "last_name": "Guardian",
-        "email": "taylor.guardian@example.com",
+        "email": f"{email_prefix}.guardian@example.com",
         "password": "StrongPass1!",
     }
     owner_resp = await client.post("/api/v1/owners", json=owner_payload, headers=headers)
@@ -37,8 +43,8 @@ async def _create_owner_and_pet(client: AsyncClient, headers: dict[str, str], lo
 
     pet_payload = {
         "owner_id": owner_id,
-        "home_location_id": location_id,
-        "name": "Indy",
+        "home_location_id": str(location_id),
+        "name": f"{email_prefix.title()}Pet",
         "pet_type": "dog",
     }
     pet_resp = await client.post("/api/v1/pets", json=pet_payload, headers=headers)
@@ -51,7 +57,7 @@ async def test_reservation_lifecycle(app_context: dict[str, object]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
-    location_id = app_context["location_id"]
+    location_id = str(app_context["location_id"])
 
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
@@ -125,7 +131,7 @@ async def test_reservation_account_isolation(app_context: dict[str, object], db_
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
-    location_id = app_context["location_id"]
+    location_id = str(app_context["location_id"])
 
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
@@ -193,3 +199,42 @@ async def test_reservation_account_isolation(app_context: dict[str, object], db_
 
     forbidden_fetch = await client.get(f"/api/v1/reservations/{reservation_id}", headers=other_headers)
     assert forbidden_fetch.status_code == 404
+
+
+async def test_reservation_capacity_limit(app_context: dict[str, object]) -> None:
+    client: AsyncClient = app_context["client"]  # type: ignore[assignment]
+    manager_email = app_context["manager_email"]
+    manager_password = app_context["manager_password"]
+    location_id = str(app_context["location_id"])
+
+    token = await _authenticate(client, manager_email, manager_password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    first_ids = await _create_owner_and_pet(client, headers, location_id, email_prefix="alex")
+    second_ids = await _create_owner_and_pet(client, headers, location_id, email_prefix="blair")
+
+    start_at = datetime.now(timezone.utc) + timedelta(days=1)
+    end_at = start_at + timedelta(days=1)
+
+    create_payload = {
+        "pet_id": first_ids["pet_id"],
+        "location_id": location_id,
+        "reservation_type": "boarding",
+        "start_at": start_at.isoformat(),
+        "end_at": end_at.isoformat(),
+        "base_rate": "120.00",
+    }
+    create_resp = await client.post("/api/v1/reservations", json=create_payload, headers=headers)
+    assert create_resp.status_code == 201
+
+    overlap_payload = {
+        "pet_id": second_ids["pet_id"],
+        "location_id": location_id,
+        "reservation_type": "boarding",
+        "start_at": start_at.isoformat(),
+        "end_at": end_at.isoformat(),
+        "base_rate": "120.00",
+    }
+    overlap_resp = await client.post("/api/v1/reservations", json=overlap_payload, headers=headers)
+    assert overlap_resp.status_code == 400
+    assert "capacity" in overlap_resp.json()["detail"].lower()

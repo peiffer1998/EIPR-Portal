@@ -41,7 +41,7 @@ class Pet(TimestampMixin, Base):
     notes: Mapped[str | None] = mapped_column(String(1024))
 
     owner: Mapped["OwnerProfile"] = relationship("OwnerProfile", back_populates="pets")
-    home_location: Mapped["Location" | None] = relationship("Location", back_populates="pets")
+    home_location: Mapped["Location | None"] = relationship("Location", back_populates="pets")
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation", back_populates="pet"
     )

@@ -52,6 +52,6 @@ class User(TimestampMixin, Base):
     is_primary_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     account: Mapped["Account"] = relationship("Account", back_populates="users")
-    owner_profile: Mapped["OwnerProfile" | None] = relationship(
+    owner_profile: Mapped["OwnerProfile | None"] = relationship(
         "OwnerProfile", back_populates="user", uselist=False
     )

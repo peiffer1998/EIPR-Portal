@@ -4,7 +4,7 @@ FastAPI-based backend service for managing reservations, operations, billing, an
 
 ## Getting Started
 
-1. Create and activate a Python 3.11 virtual environment.
+1. Create and activate a Python 3.11+ virtual environment (e.g., `python3 -m venv .venv && source .venv/bin/activate`).
 2. Install dependencies:
    ```bash
    pip install -e .[dev]
@@ -14,6 +14,15 @@ FastAPI-based backend service for managing reservations, operations, billing, an
    ```bash
    uvicorn app.main:app --reload
    ```
+
+## Running Tests
+
+With the virtual environment active, install dev dependencies and execute the suite:
+
+```bash
+pip install -e .[dev]
+pytest
+```
 
 ## Project Layout
 

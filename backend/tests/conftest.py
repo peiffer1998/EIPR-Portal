@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine
 
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
@@ -18,7 +18,15 @@ from app.core.security import get_password_hash
 from app.db.base import Base
 from app.db.session import dispose_engine, get_sessionmaker
 from app.main import app
-from app.models import Account, Location, User, UserRole, UserStatus
+from app.models import (
+    Account,
+    Location,
+    LocationCapacityRule,
+    ReservationType,
+    User,
+    UserRole,
+    UserStatus,
+)
 
 
 @pytest.fixture(scope="session")
@@ -62,6 +70,16 @@ async def app_context(reset_database: AsyncIterator[None], db_url: str) -> Async
             timezone="UTC",
         )
         session.add(location)
+        await session.flush()
+
+        for reservation_type in ReservationType:
+            session.add(
+                LocationCapacityRule(
+                    location_id=location.id,
+                    reservation_type=reservation_type,
+                    max_active=1,
+                )
+            )
 
         manager = User(
             account_id=account.id,
@@ -82,6 +100,7 @@ async def app_context(reset_database: AsyncIterator[None], db_url: str) -> Async
             "manager_password": manager_password,
         }
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         context["client"] = client
         yield context

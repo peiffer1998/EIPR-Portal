@@ -11,13 +11,13 @@ class TimestampMixin:
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default_factory=lambda: datetime.now(UTC),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default_factory=lambda: datetime.now(UTC),
+        default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         server_default=func.now(),
     )

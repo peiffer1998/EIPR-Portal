@@ -28,7 +28,7 @@ async def test_owner_pet_lifecycle(app_context: dict[str, object]) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
-    location_id = app_context["location_id"]
+    location_id = str(app_context["location_id"])
 
     token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}

@@ -6,12 +6,13 @@ from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.location import Location
+from app.models.location_capacity import LocationCapacityRule
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet
 from app.models.reservation import Reservation, ReservationStatus, ReservationType
@@ -26,6 +27,12 @@ _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
     ReservationStatus.CHECKED_IN: {ReservationStatus.CHECKED_OUT},
     ReservationStatus.CHECKED_OUT: set(),
     ReservationStatus.CANCELED: set(),
+}
+
+_ACTIVE_RESERVATION_STATUSES = {
+    ReservationStatus.REQUESTED,
+    ReservationStatus.CONFIRMED,
+    ReservationStatus.CHECKED_IN,
 }
 
 
@@ -115,6 +122,15 @@ async def create_reservation(
     _validate_times(start_at, end_at)
     await _validate_pet(session, account_id=account_id, pet_id=pet_id)
     await _validate_location(session, account_id=account_id, location_id=location_id)
+    await _ensure_capacity_available(
+        session,
+        account_id=account_id,
+        location_id=location_id,
+        reservation_type=reservation_type,
+        start_at=start_at,
+        end_at=end_at,
+        status=status,
+    )
 
     reservation = Reservation(
         account_id=account_id,
@@ -190,6 +206,17 @@ async def update_reservation(
     if notes is not None:
         reservation.notes = notes
 
+    await _ensure_capacity_available(
+        session,
+        account_id=account_id,
+        location_id=reservation.location_id,
+        reservation_type=reservation.reservation_type,
+        start_at=reservation.start_at,
+        end_at=reservation.end_at,
+        status=reservation.status,
+        exclude_reservation_id=reservation.id,
+    )
+
     session.add(reservation)
     await session.commit()
     await session.refresh(reservation)
@@ -206,3 +233,44 @@ async def delete_reservation(
         raise ValueError("Reservation does not belong to the provided account")
     await session.delete(reservation)
     await session.commit()
+
+
+async def _ensure_capacity_available(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    location_id: uuid.UUID,
+    reservation_type: ReservationType,
+    start_at: datetime,
+    end_at: datetime,
+    status: ReservationStatus,
+    exclude_reservation_id: uuid.UUID | None = None,
+) -> None:
+    """Validate that a reservation falls within configured capacity limits."""
+    if status not in _ACTIVE_RESERVATION_STATUSES:
+        return
+
+    result = await session.execute(
+        select(LocationCapacityRule.max_active).where(
+            LocationCapacityRule.location_id == location_id,
+            LocationCapacityRule.reservation_type == reservation_type,
+        )
+    )
+    max_active = result.scalar_one_or_none()
+    if max_active is None:
+        return
+
+    overlap_stmt = select(func.count()).select_from(Reservation).where(
+        Reservation.account_id == account_id,
+        Reservation.location_id == location_id,
+        Reservation.reservation_type == reservation_type,
+        Reservation.status.in_(_ACTIVE_RESERVATION_STATUSES),
+        Reservation.end_at > start_at,
+        Reservation.start_at < end_at,
+    )
+    if exclude_reservation_id is not None:
+        overlap_stmt = overlap_stmt.where(Reservation.id != exclude_reservation_id)
+
+    count_active = (await session.execute(overlap_stmt)).scalar_one()
+    if count_active >= max_active:
+        raise ValueError("Capacity limit reached for the selected slot")

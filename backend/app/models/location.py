@@ -35,3 +35,6 @@ class Location(TimestampMixin, Base):
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation", back_populates="location"
     )
+    capacity_rules: Mapped[list["LocationCapacityRule"]] = relationship(
+        "LocationCapacityRule", back_populates="location", cascade="all, delete-orphan"
+    )
