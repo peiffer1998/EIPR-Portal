@@ -12,6 +12,9 @@ from app.models.document import Document
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet
 from app.schemas.document import DocumentCreate
+from app.integrations import S3Client
+from app.services.image_service import hash_bytes, to_webp
+from app.core.config import Settings
 
 
 async def list_documents(
@@ -97,3 +100,107 @@ async def create_document(
 async def delete_document(session: AsyncSession, *, document: Document) -> None:
     await session.delete(document)
     await session.commit()
+
+
+async def finalize_document_from_storage(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    uploaded_by_user_id: uuid.UUID | None,
+    owner_id: uuid.UUID | None,
+    pet_id: uuid.UUID | None,
+    object_key: str,
+    file_name: str,
+    content_type: str,
+    notes: str | None,
+    s3_client: S3Client,
+    settings: Settings,
+) -> tuple[Document, str]:
+    """Create a document record from an object stored in S3-compatible storage."""
+
+    content_type_value = content_type or "application/octet-stream"
+
+    original_bytes = s3_client.get_object_bytes(object_key)
+    sha_hex = hash_bytes(original_bytes)
+
+    reuse_web: Document | None = None
+    if settings.image_dedup:
+        result = await session.execute(
+            select(Document)
+            .where(
+                Document.account_id == account_id,
+                Document.sha256 == sha_hex,
+                Document.object_key_web.is_not(None),
+            )
+            .limit(1)
+        )
+        reuse_web = result.scalar_one_or_none()
+
+    object_key_web: str | None = None
+    bytes_web: int | None = None
+    width: int | None = None
+    height: int | None = None
+    content_type_web: str | None = None
+
+    if reuse_web is not None and reuse_web.object_key_web:
+        object_key_web = reuse_web.object_key_web
+        bytes_web = reuse_web.bytes_web
+        width = reuse_web.width
+        height = reuse_web.height
+        content_type_web = reuse_web.content_type_web or "image/webp"
+    elif content_type_value.lower().startswith("image/"):
+        web_bytes, width, height = to_webp(
+            original_bytes,
+            settings.image_max_width,
+            settings.image_webp_quality,
+        )
+        if width and height and web_bytes:
+            object_key_web = f"web/{account_id}/{sha_hex}.webp"
+            s3_client.put_object_with_cache(
+                object_key_web,
+                web_bytes,
+                content_type="image/webp",
+                cache_seconds=settings.s3_cache_seconds,
+                tags={"class": "web", "keep": "true"},
+            )
+            bytes_web = len(web_bytes)
+            content_type_web = "image/webp"
+
+    if settings.image_keep_original_days > 0:
+        try:
+            s3_client.put_object_tagging(
+                object_key,
+                {"class": "orig", "retain": str(settings.image_keep_original_days)},
+            )
+        except Exception:  # pragma: no cover - best effort only
+            pass
+
+    url = s3_client.build_object_url(object_key)
+    url_web = (
+        s3_client.build_object_url(object_key_web)
+        if object_key_web is not None
+        else None
+    )
+
+    document = await create_document(
+        session,
+        account_id=account_id,
+        uploaded_by_user_id=uploaded_by_user_id,
+        payload=DocumentCreate(
+            file_name=file_name,
+            content_type=content_type_value,
+            object_key=object_key,
+            url=url,
+            owner_id=owner_id,
+            pet_id=pet_id,
+            notes=notes,
+            sha256=sha_hex,
+            object_key_web=object_key_web,
+            bytes_web=bytes_web,
+            width=width,
+            height=height,
+            content_type_web=content_type_web,
+            url_web=url_web,
+        ),
+    )
+    return document, sha_hex

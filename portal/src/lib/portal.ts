@@ -58,6 +58,7 @@ export interface ApiDocument {
   url_web?: string | null;
   content_type: string | null;
   created_at: string;
+  sha256?: string | null;
 }
 
 export interface PortalMeApiResponse {
@@ -67,7 +68,7 @@ export interface PortalMeApiResponse {
   past_reservations: ApiReservation[];
   unpaid_invoices: ApiInvoice[];
   recent_paid_invoices: ApiInvoice[];
-  documents?: ApiDocument[];
+  documents: ApiDocument[];
 }
 
 export interface PortalInvoicesResponse {
@@ -108,7 +109,12 @@ export const fetchInvoices = async (): Promise<PortalInvoicesResponse> => {
 };
 
 export const createPaymentIntent = async (invoiceId: string) => {
-  const { data } = await api.post<{ client_secret: string; transaction_id: string; invoice_id: string }>(
+  const { data } = await api.post<{
+    client_secret: string;
+    transaction_id: string;
+    invoice_id: string;
+    amount_due: string;
+  }>(
     '/portal/payments/create-intent',
     {
       invoice_id: invoiceId,
@@ -123,7 +129,12 @@ export const presignDocument = async (payload: {
   ownerId?: string;
   petId?: string;
 }) => {
-  const { data } = await api.post<{ upload_ref: string; upload_url: string; headers: Record<string, string> }>(
+  const { data } = await api.post<{
+    upload_ref: string;
+    upload_url: string;
+    object_key: string;
+    headers: Record<string, string>;
+  }>(
     '/portal/documents/presign',
     {
       filename: payload.filename,
@@ -135,15 +146,45 @@ export const presignDocument = async (payload: {
   return data;
 };
 
+export const uploadDocumentBytes = async (
+  uploadUrl: string,
+  file: File,
+  headers: Record<string, string>,
+  token?: string | null,
+) => {
+  const base =
+    api.defaults.baseURL ??
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+  const url = new URL(uploadUrl, base).toString();
+  const requestHeaders = new Headers(headers);
+  if (!requestHeaders.has('Content-Type')) {
+    requestHeaders.set('Content-Type', file.type || 'application/octet-stream');
+  }
+  if (token) {
+    requestHeaders.set('Authorization', `Bearer ${token}`);
+  }
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: requestHeaders,
+    body: file,
+    credentials: 'include',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to upload document');
+  }
+};
+
 export const finalizeDocument = async (payload: {
   uploadRef: string;
   ownerId?: string;
   petId?: string;
+  notes?: string;
 }) => {
-  const { data } = await api.post<{ document: unknown }>('/portal/documents/finalize', {
+  const { data } = await api.post<{ document: ApiDocument }>('/portal/documents/finalize', {
     upload_ref: payload.uploadRef,
     owner_id: payload.ownerId,
     pet_id: payload.petId,
+    notes: payload.notes,
   });
   return data;
 };

@@ -6,8 +6,9 @@ import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TypedDict
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,9 +16,10 @@ from sqlalchemy.orm import selectinload
 
 from app.api import deps
 from app.core.config import get_settings
-from app.integrations import StripeClient, StripeClientError
+from app.integrations import S3Client, StripeClient, StripeClientError
 from app.models import (
     Account,
+    Document,
     ImmunizationRecord,
     Invoice,
     InvoiceStatus,
@@ -31,7 +33,7 @@ from app.models import (
     User,
     UserRole,
 )
-from app.schemas.document import DocumentCreate, DocumentRead
+from app.schemas.document import DocumentRead
 from app.schemas.invoice import InvoiceRead
 from app.schemas.owner import OwnerRead
 from app.schemas.pet import PetRead
@@ -55,7 +57,28 @@ def _optional_stripe_client() -> StripeClient | None:
 
 
 _SETTINGS_CACHE = get_settings
-_PRESIGNED_UPLOADS: dict[str, dict[str, str]] = {}
+
+
+class PendingUpload(TypedDict, total=False):
+    file_name: str
+    content_type: str
+    owner_id: str
+    pet_id: str
+    object_key: str
+    uploaded: bool
+
+
+_PRESIGNED_UPLOADS: dict[str, PendingUpload] = {}
+
+
+def _document_to_read(document: Document, s3_client: S3Client | None) -> DocumentRead:
+    data = DocumentRead.model_validate(document)
+    if s3_client:
+        if document.object_key:
+            data.url = s3_client.build_object_url(document.object_key)
+        if document.object_key_web:
+            data.url_web = s3_client.build_object_url(document.object_key_web)
+    return data
 
 
 class PortalLoginRequest(BaseModel):
@@ -111,6 +134,7 @@ class PortalMeResponse(BaseModel):
     past_reservations: list[ReservationRead]
     unpaid_invoices: list[InvoiceRead]
     recent_paid_invoices: list[InvoiceRead]
+    documents: list[DocumentRead]
 
 
 class PortalInvoicesResponse(BaseModel):
@@ -126,6 +150,7 @@ class PortalPaymentIntentResponse(BaseModel):
     client_secret: str
     transaction_id: str
     invoice_id: uuid.UUID
+    amount_due: Decimal
 
 
 class PortalDocumentPresignRequest(BaseModel):
@@ -138,6 +163,7 @@ class PortalDocumentPresignRequest(BaseModel):
 class PortalDocumentPresignResponse(BaseModel):
     upload_ref: str
     upload_url: str
+    object_key: str
     headers: dict[str, str]
 
 
@@ -145,6 +171,7 @@ class PortalDocumentFinalizeRequest(BaseModel):
     upload_ref: str
     owner_id: uuid.UUID | None = None
     pet_id: uuid.UUID | None = None
+    notes: str | None = None
 
 
 class PortalDocumentFinalizeResponse(BaseModel):
@@ -386,6 +413,13 @@ async def portal_me(
     )
     upcoming, past = _categorise_reservations(reservations)
     unpaid, paid = _categorise_invoices(reservations)
+    documents = await document_service.list_documents(
+        session, account_id=current_user.account_id, owner_id=owner.id
+    )
+    try:
+        s3_client: S3Client | None = deps.get_s3_client()
+    except HTTPException:
+        s3_client = None
     return PortalMeResponse(
         owner=OwnerRead.model_validate(owner),
         pets=[PetRead.model_validate(pet) for pet in pets],
@@ -393,6 +427,7 @@ async def portal_me(
         past_reservations=[ReservationRead.model_validate(res) for res in past],
         unpaid_invoices=[InvoiceRead.model_validate(inv) for inv in unpaid],
         recent_paid_invoices=[InvoiceRead.model_validate(inv) for inv in paid],
+        documents=[_document_to_read(doc, s3_client) for doc in documents],
     )
 
 
@@ -605,6 +640,7 @@ async def portal_create_payment_intent(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice already paid"
         )
+    amount_due = invoice.total or Decimal("0")
     if stripe_client is None:
         fake_id = f"pi_{uuid.uuid4().hex}"
         client_secret = f"{fake_id}_secret_test"
@@ -612,7 +648,7 @@ async def portal_create_payment_intent(
     else:
         try:
             intent = stripe_client.create_payment_intent(
-                amount=invoice.total or Decimal("0"),
+                amount=amount_due,
                 invoice_id=invoice.id,
                 metadata={"account_id": str(invoice.account_id)},
             )
@@ -626,6 +662,7 @@ async def portal_create_payment_intent(
         client_secret=client_secret,
         transaction_id=intent_id,
         invoice_id=payload.invoice_id,
+        amount_due=amount_due,
     )
 
 
@@ -640,6 +677,8 @@ async def portal_document_presign(
     current_user: User = Depends(deps.get_current_active_user),
 ) -> PortalDocumentPresignResponse:
     owner = await _ensure_portal_owner(session, current_user)
+    deps.get_s3_client()
+    settings = _SETTINGS_CACHE()
     if payload.owner_id is not None and payload.owner_id != owner.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -653,17 +692,68 @@ async def portal_document_presign(
             pet_id=payload.pet_id,
         )
     upload_ref = uuid.uuid4().hex
-    _PRESIGNED_UPLOADS[upload_ref] = {
-        "file_name": payload.filename,
-        "content_type": payload.content_type,
-        "owner_id": str(payload.owner_id) if payload.owner_id else "",
-        "pet_id": str(payload.pet_id) if payload.pet_id else "",
-    }
+    safe_name = payload.filename.rsplit("/", 1)[-1]
+    object_key = (
+        f"uploads/{current_user.account_id}/{owner.id}/{upload_ref}-{safe_name}"
+    )
+    _PRESIGNED_UPLOADS[upload_ref] = PendingUpload(
+        file_name=safe_name,
+        content_type=payload.content_type,
+        owner_id=str(payload.owner_id or owner.id),
+        pet_id=str(payload.pet_id) if payload.pet_id else "",
+        object_key=object_key,
+        uploaded=False,
+    )
     return PortalDocumentPresignResponse(
         upload_ref=upload_ref,
-        upload_url=f"https://uploads.local/{upload_ref}",
+        upload_url=f"{settings.api_v1_prefix}/portal/documents/uploads/{upload_ref}",
+        object_key=object_key,
         headers={"Content-Type": payload.content_type},
     )
+
+
+@router.put(
+    "/documents/uploads/{upload_ref}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Receive direct document upload for portal",
+)
+async def portal_document_upload(
+    upload_ref: str,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(deps.get_db_session),
+    current_user: User = Depends(deps.get_current_active_user),
+) -> None:
+    owner = await _ensure_portal_owner(session, current_user)
+    pending = _PRESIGNED_UPLOADS.get(upload_ref)
+    if not pending:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload reference not found",
+        )
+    if pending.get("owner_id") and uuid.UUID(pending["owner_id"]) != owner.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot upload for another owner",
+        )
+    object_key = pending.get("object_key")
+    if not object_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload reference misconfigured",
+        )
+    s3_client = deps.get_s3_client()
+    content_type = (
+        file.content_type or pending.get("content_type") or "application/octet-stream"
+    )
+    payload = await file.read()
+    s3_client.put_object_with_cache(
+        object_key,
+        payload,
+        content_type=content_type,
+        cache_seconds=0,
+    )
+    pending["content_type"] = content_type
+    pending["uploaded"] = True
 
 
 @router.post(
@@ -682,17 +772,15 @@ async def portal_document_finalize(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Upload reference not found"
         )
-    owner_id = payload.owner_id or (
-        uuid.UUID(pending["owner_id"]) if pending["owner_id"] else owner.id
-    )
-    pet_id = payload.pet_id or (
-        uuid.UUID(pending["pet_id"]) if pending["pet_id"] else None
-    )
+    pending_owner_id = uuid.UUID(pending.get("owner_id", str(owner.id)))
+    owner_id = payload.owner_id or pending_owner_id
     if owner_id != owner.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot finalize for another owner",
         )
+    pending_pet_id = uuid.UUID(pending["pet_id"]) if pending.get("pet_id") else None
+    pet_id = payload.pet_id or pending_pet_id
     if pet_id is not None:
         await _ensure_pet_for_owner(
             session,
@@ -700,19 +788,41 @@ async def portal_document_finalize(
             owner_id=owner.id,
             pet_id=pet_id,
         )
-    document = await document_service.create_document(
-        session,
-        account_id=current_user.account_id,
-        uploaded_by_user_id=current_user.id,
-        payload=DocumentCreate(
+    if not pending.get("uploaded"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File has not been uploaded",
+        )
+
+    object_key = pending.get("object_key")
+    if not object_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Upload reference misconfigured",
+        )
+
+    s3_client = deps.get_s3_client()
+    settings = _SETTINGS_CACHE()
+
+    try:
+        document, _ = await document_service.finalize_document_from_storage(
+            session,
+            account_id=current_user.account_id,
+            uploaded_by_user_id=current_user.id,
             owner_id=owner_id,
             pet_id=pet_id,
-            file_name=pending["file_name"],
-            content_type=pending["content_type"],
-            url=f"https://uploads.local/{payload.upload_ref}",
-            notes=None,
-        ),
-    )
-    return PortalDocumentFinalizeResponse(
-        document=DocumentRead.model_validate(document)
-    )
+            object_key=object_key,
+            file_name=pending.get("file_name", object_key.rsplit("/", 1)[-1]),
+            content_type=pending.get("content_type", "application/octet-stream"),
+            notes=payload.notes,
+            s3_client=s3_client,
+            settings=settings,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    document_read = _document_to_read(document, s3_client)
+    return PortalDocumentFinalizeResponse(document=document_read)

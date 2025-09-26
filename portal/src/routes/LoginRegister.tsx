@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { login, registerOwner, getMe } from '../lib/auth';
+import { login, registerOwner } from '../lib/auth';
 import { fetchPortalMe } from '../lib/portal';
 import { useAuth } from '../state/AuthContext';
 import { PORTAL_ME_QUERY_KEY } from '../lib/usePortalMe';

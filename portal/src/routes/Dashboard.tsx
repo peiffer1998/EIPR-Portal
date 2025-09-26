@@ -25,9 +25,10 @@ const Dashboard = () => {
   const pets = data?.pets ?? [];
   const upcoming = data?.upcoming_reservations ?? [];
   const unpaid = data?.unpaid_invoices ?? [];
+  const documents = data?.documents ?? [];
 
   return (
-    <section className="grid gap-6 md:grid-cols-3">
+    <section className="grid gap-6 md:grid-cols-4">
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <p className="text-sm uppercase text-slate-400">Pets</p>
         <p className="mt-2 text-4xl font-semibold text-slate-900">{pets.length}</p>
@@ -42,6 +43,11 @@ const Dashboard = () => {
         <p className="text-sm uppercase text-slate-400">Unpaid invoices</p>
         <p className="mt-2 text-4xl font-semibold text-slate-900">{unpaid.length}</p>
         <p className="mt-1 text-sm text-slate-500">Settle balances before drop-off</p>
+      </div>
+      <div className="rounded-2xl bg-white p-6 shadow-sm">
+        <p className="text-sm uppercase text-slate-400">Documents</p>
+        <p className="mt-2 text-4xl font-semibold text-slate-900">{documents.length}</p>
+        <p className="mt-1 text-sm text-slate-500">Records on file</p>
       </div>
     </section>
   );

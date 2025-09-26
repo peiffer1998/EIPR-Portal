@@ -81,6 +81,19 @@ services:
       until /usr/bin/mc alias set minio http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin}; do sleep 1; done &&
       /usr/bin/mc mb minio/${S3_BUCKET:-eipr} || true
     restart: "no"
+  portal:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./portal:/app
+    command: sh -c "npm ci || npm install && npm run dev -- --host"
+    environment:
+      VITE_API_BASE_URL: http://api:8000/api/v1
+      VITE_STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_test_xxx}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
 
 volumes:
   pgdata:

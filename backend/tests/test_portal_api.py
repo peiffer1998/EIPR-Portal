@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.api import deps
 from app.core.config import get_settings
 from app.db.session import get_sessionmaker
 from sqlalchemy import select
@@ -37,6 +38,7 @@ async def test_portal_owner_flow(app_context, db_url: str) -> None:
     os.environ["PORTAL_ACCOUNT_SLUG"] = account_slug
     get_settings.cache_clear()
     get_settings()
+    deps._build_s3_client.cache_clear()
 
     email = f"owner+{uuid.uuid4().hex[:6]}@example.com"
     password = "Secure123!"
@@ -80,6 +82,7 @@ async def test_portal_owner_flow(app_context, db_url: str) -> None:
     me_body = me.json()
     assert me_body["owner"]["id"] == str(owner_id)
     assert len(me_body["pets"]) == 1
+    assert me_body["documents"] == []
 
     pet_id = uuid.UUID(me_body["pets"][0]["id"])
     start_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=2)
@@ -133,7 +136,44 @@ async def test_portal_owner_flow(app_context, db_url: str) -> None:
     invoice_body = invoice_resp.json()
     assert invoice_body["invoice_id"] == str(invoice_id)
     assert invoice_body["client_secret"]
+    assert invoice_body["amount_due"]
+
+    # document upload flow
+    presign_resp = await client.post(
+        "/api/v1/portal/documents/presign",
+        headers=headers,
+        json={
+            "filename": "vaccination.jpg",
+            "content_type": "image/jpeg",
+        },
+    )
+    assert presign_resp.status_code == 200
+    presign_payload = presign_resp.json()
+    upload_url: str = presign_payload["upload_url"]
+    upload_ref: str = presign_payload["upload_ref"]
+
+    upload_resp = await client.put(
+        upload_url,
+        headers=headers,
+        files={"file": ("vaccination.jpg", b"fake image bytes", "image/jpeg")},
+    )
+    assert upload_resp.status_code == 204
+
+    finalize_resp = await client.post(
+        "/api/v1/portal/documents/finalize",
+        headers=headers,
+        json={
+            "upload_ref": upload_ref,
+            "notes": "Vet record",
+        },
+    )
+    assert finalize_resp.status_code == 200
+    finalize_payload = finalize_resp.json()
+    assert finalize_payload["document"]["file_name"] == "vaccination.jpg"
+    assert finalize_payload["document"]["url"]
 
     login_headers = await _auth_headers(client, email, password)
     me_again = await client.get("/api/v1/portal/me", headers=login_headers)
     assert me_again.status_code == 200
+    me_again_body = me_again.json()
+    assert len(me_again_body["documents"]) == 1
