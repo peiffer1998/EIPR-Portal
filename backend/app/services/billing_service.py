@@ -216,5 +216,10 @@ async def _recalculate_totals(session: AsyncSession, invoice: Invoice) -> None:
     invoice.total = _to_money(
         invoice.subtotal - invoice.discount_total + invoice.tax_total
     )
-    invoice.total_amount = invoice.total
+    credits_total = _to_money(invoice.credits_total or Decimal("0"))
+    invoice.credits_total = credits_total
+    remainder = invoice.total - credits_total
+    invoice.total_amount = _to_money(
+        remainder if remainder > Decimal("0") else Decimal("0")
+    )
     session.add(invoice)

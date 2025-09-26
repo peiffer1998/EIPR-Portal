@@ -82,6 +82,8 @@ async def create_or_update_payment_for_invoice(
     amount_due = await invoice_service.amount_due(
         session, invoice_id=invoice_id, account_id=account_id
     )
+    if amount_due <= Decimal("0"):
+        raise ValueError("Invoice balance is zero; no payment required")
     customer_email = owner_profile.user.email
     idempotency_key = f"invoice-{invoice_id}-intent"
     intent = stripe.create_payment_intent(

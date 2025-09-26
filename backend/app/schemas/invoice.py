@@ -45,6 +45,7 @@ class InvoiceRead(BaseModel):
     discount_total: Decimal
     tax_total: Decimal
     total: Decimal
+    credits_total: Decimal
     total_amount: Decimal
     paid_at: datetime | None = None
     created_at: datetime
@@ -82,5 +83,7 @@ class InvoiceTotalsRead(BaseModel):
     discount_total: Decimal
     tax_total: Decimal
     total: Decimal
+    credits_total: Decimal
+    total_amount: Decimal
 
     model_config = ConfigDict(from_attributes=True)

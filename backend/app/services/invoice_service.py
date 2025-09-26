@@ -32,6 +32,13 @@ def _to_money(value: Decimal | float | str) -> Decimal:
     return Decimal(value).quantize(_MONEY_PLACES, rounding=ROUND_HALF_UP)
 
 
+def _remaining_total(total: Decimal | None, credits: Decimal | None) -> Decimal:
+    total_value = _to_money(total or Decimal("0"))
+    credit_value = _to_money(credits or Decimal("0"))
+    remainder = total_value - credit_value
+    return remainder if remainder > Decimal("0") else Decimal("0.00")
+
+
 @dataclass(slots=True)
 class InvoiceTotals:
     """Representation of invoice totals."""
@@ -41,6 +48,8 @@ class InvoiceTotals:
     discount_total: Decimal
     tax_total: Decimal
     total: Decimal
+    credits_total: Decimal
+    total_amount: Decimal
 
 
 async def create_from_reservation(
@@ -72,6 +81,7 @@ async def create_from_reservation(
         subtotal=quote.subtotal,
         discount_total=quote.discount_total,
         tax_total=quote.tax_total,
+        credits_total=Decimal("0.00"),
         total=quote.total,
         total_amount=quote.total,
     )
@@ -130,7 +140,7 @@ async def compute_totals(
     invoice.discount_total = quote.discount_total
     invoice.tax_total = quote.tax_total
     invoice.total = quote.total
-    invoice.total_amount = quote.total
+    invoice.total_amount = _remaining_total(invoice.total, invoice.credits_total)
     await session.commit()
     await session.refresh(invoice)
 
@@ -140,6 +150,8 @@ async def compute_totals(
         discount_total=invoice.discount_total,
         tax_total=invoice.tax_total,
         total=invoice.total,
+        credits_total=invoice.credits_total,
+        total_amount=invoice.total_amount,
     )
 
 
@@ -149,13 +161,14 @@ async def amount_due(
     invoice_id: UUID,
     account_id: UUID,
 ) -> Decimal:
-    """Return the remaining balance for an invoice after held deposits."""
+    """Return the remaining balance for an invoice after credits and deposits."""
 
     invoice = await _load_invoice(session, invoice_id, account_id)
     if invoice is None:
         raise ValueError("Invoice not found")
 
-    total = (invoice.total or Decimal("0")).quantize(_MONEY_PLACES)
+    post_credit_total = _remaining_total(invoice.total, invoice.credits_total)
+
     held_raw = await session.scalar(
         select(func.coalesce(func.sum(Deposit.amount), 0)).where(
             Deposit.reservation_id == invoice.reservation_id,
@@ -163,8 +176,8 @@ async def amount_due(
             Deposit.status == DepositStatus.HELD,
         )
     )
-    held = Decimal(held_raw or 0).quantize(_MONEY_PLACES)
-    due = total - held
+    held = _to_money(held_raw or 0)
+    due = post_credit_total - held
     if due <= Decimal("0"):
         return Decimal("0.00")
     return due.quantize(_MONEY_PLACES)

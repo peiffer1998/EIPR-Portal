@@ -213,3 +213,28 @@ async def test_payment_refund_markers(reset_database, db_url: str) -> None:
         refunded = await session.get(PaymentTransaction, transaction_id)
         assert refunded is not None
         assert refunded.status is PaymentTransactionStatus.REFUNDED
+
+
+async def test_payment_zero_balance_blocks_intent(reset_database, db_url: str) -> None:
+    sessionmaker = get_sessionmaker(db_url)
+    async with sessionmaker() as session:
+        account, invoice, reservation = await _seed_invoice(session)
+        await invoice_service.settle_deposit(
+            session,
+            reservation_id=reservation.id,
+            account_id=account.id,
+            action="hold",
+            amount=invoice.total or Decimal("0"),
+        )
+        stripe_client = StripeClient("sk_test_dummy", test_mode=True)
+        try:
+            await payments_service.create_or_update_payment_for_invoice(
+                session,
+                account_id=account.id,
+                invoice_id=invoice.id,
+                stripe=stripe_client,
+            )
+        except ValueError as exc:
+            assert "no payment required" in str(exc)
+        else:
+            raise AssertionError("Expected ValueError for zero balance")
