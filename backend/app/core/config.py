@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         default=None, alias="STRIPE_TERMINAL_LOCATION"
     )
 
+    payments_webhook_verify: bool = Field(default=True, alias="PAYMENTS_WEBHOOK_VERIFY")
+    portal_account_slug: str | None = Field(default=None, alias="PORTAL_ACCOUNT_SLUG")
+
     twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
     twilio_messaging_service_sid: str | None = Field(

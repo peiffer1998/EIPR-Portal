@@ -6,16 +6,18 @@ import datetime
 import enum
 import uuid
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
+if TYPE_CHECKING:  # pragma: no cover - typing helpers
+    from app.models.account import Account
 
 JSONB_TYPE = JSONB().with_variant(JSON(), "sqlite")
 
@@ -53,6 +55,8 @@ class PriceRule(TimestampMixin, Base):
     )
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    account: Mapped["Account"] = relationship("Account", back_populates="price_rules")
+
 
 class Promotion(TimestampMixin, Base):
     """Promotion code definitions scoped to an account."""
@@ -69,3 +73,5 @@ class Promotion(TimestampMixin, Base):
     starts_on: Mapped[datetime.date | None] = mapped_column(nullable=True)
     ends_on: Mapped[datetime.date | None] = mapped_column(nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    account: Mapped["Account"] = relationship("Account", back_populates="promotions")

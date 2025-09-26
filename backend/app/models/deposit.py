@@ -14,7 +14,7 @@ from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models import OwnerProfile, Reservation
+    from app.models import Account, OwnerProfile, Reservation
 
 
 class DepositStatus(str, enum.Enum):
@@ -48,3 +48,4 @@ class Deposit(TimestampMixin, Base):
         "Reservation", back_populates="deposits"
     )
     owner: Mapped["OwnerProfile"] = relationship("OwnerProfile")
+    account: Mapped["Account"] = relationship("Account", back_populates="deposits")

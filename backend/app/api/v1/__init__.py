@@ -20,6 +20,7 @@ from . import (
     medication,
     medication_board,
     owners,
+    portal,
     packages,
     pets,
     pricing,
@@ -39,6 +40,7 @@ router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 router.include_router(locations.router, prefix="/locations", tags=["locations"])
 router.include_router(owners.router, prefix="/owners", tags=["owners"])
 router.include_router(pets.router, prefix="/pets", tags=["pets"])
+router.include_router(portal.router)
 router.include_router(
     reservations.router, prefix="/reservations", tags=["reservations"]
 )
