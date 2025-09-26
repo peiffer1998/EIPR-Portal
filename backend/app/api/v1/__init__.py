@@ -26,6 +26,7 @@ from . import (
     portal_report_cards,
     report_cards,
     packages,
+    store,
     pets,
     payments,
     payments_webhook,
@@ -87,6 +88,7 @@ router.include_router(
 router.include_router(run_cards.router, tags=["run-cards"])
 # END OPS_P5 ROUTES
 router.include_router(grooming.router, prefix="/grooming", tags=["grooming"])
+router.include_router(store.router, tags=["store"])
 router.include_router(
     grooming_reports.router,
     prefix="/grooming/reports",
