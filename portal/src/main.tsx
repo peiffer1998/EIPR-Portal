@@ -16,6 +16,10 @@ import Invoices from './routes/Invoices';
 import Uploads from './routes/Uploads';
 import ReportCards from './routes/ReportCards';
 import ReportCardDetail from './routes/ReportCardDetail';
+import Store from './routes/Store';
+import StorePackages from './routes/StorePackages';
+import StoreGiftCerts from './routes/StoreGiftCerts';
+import StoreBalances from './routes/StoreBalances';
 
 const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const { isAuthenticated } = useAuth();
@@ -50,6 +54,12 @@ createRoot(root).render(
               <Route path="invoices" element={<Invoices />} />
               <Route path="report-cards" element={<ReportCards />} />
               <Route path="report-cards/:cardId" element={<ReportCardDetail />} />
+              <Route path="store" element={<Store />}>
+                <Route index element={<StorePackages />} />
+                <Route path="packages" element={<StorePackages />} />
+                <Route path="gift-certificates" element={<StoreGiftCerts />} />
+                <Route path="balances" element={<StoreBalances />} />
+              </Route>
               <Route path="uploads" element={<Uploads />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

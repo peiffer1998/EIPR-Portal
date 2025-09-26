@@ -106,6 +106,30 @@ export interface PortalInvoicesResponse {
   unpaid: ApiInvoice[];
   recent_paid: ApiInvoice[];
 }
+export interface PortalPackageType {
+  package_type_id: string;
+  name: string;
+  applies_to: string;
+  remaining: number;
+}
+
+export interface PortalStoreCreditSummary {
+  balance: string;
+}
+
+export interface PortalStoreBalancesResponse {
+  packages: PortalPackageType[];
+  store_credit: PortalStoreCreditSummary;
+}
+
+export interface PortalPurchaseResponse {
+  invoice_id: string;
+  client_secret?: string;
+  transaction_id?: string;
+  gift_certificate_id?: string;
+  gift_certificate_code?: string;
+}
+
 
 export const fetchPortalMe = async (): Promise<PortalMeApiResponse> => {
   const { data } = await api.get<PortalMeApiResponse>('/portal/me');
@@ -229,5 +253,43 @@ export const fetchReportCards = async (petId?: string): Promise<ApiReportCard[]>
 
 export const fetchReportCardDetail = async (cardId: string): Promise<ApiReportCard> => {
   const { data } = await api.get<ApiReportCard>(`/portal/report-cards/${cardId}`);
+  return data;
+};
+
+export const fetchPortalStoreBalances = async (): Promise<PortalStoreBalancesResponse> => {
+  const { data } = await api.get<PortalStoreBalancesResponse>('/portal/store/balances');
+  return data;
+};
+
+export const fetchPortalStorePackages = async (): Promise<PortalPackageType[]> => {
+  const { data } = await api.get<PortalPackageType[]>('/portal/store/package-types');
+  return data;
+};
+
+export const buyPortalPackage = async (payload: { packageTypeId: string; quantity: number }): Promise<PortalPurchaseResponse> => {
+  const { data } = await api.post<PortalPurchaseResponse>('/portal/store/packages/buy', {
+    package_type_id: payload.packageTypeId,
+    quantity: payload.quantity,
+  });
+  return data;
+};
+
+export const buyPortalGiftCertificate = async (payload: { amount: string; recipientEmail?: string }): Promise<PortalPurchaseResponse> => {
+  const { data } = await api.post<PortalPurchaseResponse>('/portal/store/gift-certificates/buy', {
+    amount: payload.amount,
+    recipient_email: payload.recipientEmail,
+  });
+  return data;
+};
+
+export const redeemPortalGiftCertificate = async (code: string): Promise<PortalStoreBalancesResponse> => {
+  const { data } = await api.post<PortalStoreBalancesResponse>('/portal/store/gift-certificates/redeem', { code });
+  return data;
+};
+
+export const applyPortalStoreCredit = async (payload: { invoiceId: string; amount: string }): Promise<PortalStoreBalancesResponse> => {
+  const { data } = await api.post<PortalStoreBalancesResponse>(`/portal/invoices/${payload.invoiceId}/apply-store-credit`, {
+    amount: payload.amount,
+  });
   return data;
 };

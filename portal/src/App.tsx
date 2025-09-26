@@ -8,6 +8,7 @@ const navLinks = [
   { to: '/reservations', label: 'Reservations' },
   { to: '/invoices', label: 'Invoices' },
   { to: '/report-cards', label: 'Report Cards' },
+  { to: '/store', label: 'Store' },
   { to: '/uploads', label: 'Uploads' },
 ];
 
