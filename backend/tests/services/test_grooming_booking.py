@@ -9,6 +9,7 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
@@ -19,6 +20,7 @@ from app.models import (
     GroomingAddon,
     GroomingAppointmentStatus,
     GroomingService,
+    CommissionPayout,
     Invoice,
     Location,
     OwnerProfile,
@@ -33,6 +35,7 @@ from app.models import (
     UserRole,
     UserStatus,
 )
+from app.services import commission_service
 from app.services.grooming_booking_service import (
     book_appointment,
     cancel_appointment,
@@ -185,7 +188,46 @@ async def test_book_appointment_creates_invoice_and_commission(
         )
         assert invoice is not None
         assert len(invoice.items) == 2
-        assert invoice.total == Decimal("105.00")
+    assert invoice.total == Decimal("105.00")
+
+
+@pytest.mark.asyncio
+async def test_commission_build_uses_specialist_location(
+    grooming_setup: dict[str, uuid.UUID],
+) -> None:
+    sessionmaker = get_sessionmaker(os.environ["DATABASE_URL"])
+    async with sessionmaker() as session:
+        appointment = await book_appointment(
+            session,
+            account_id=grooming_setup["account_id"],
+            owner_id=grooming_setup["owner_id"],
+            pet_id=grooming_setup["pet_id"],
+            specialist_id=grooming_setup["specialist_id"],
+            service_id=grooming_setup["service_id"],
+            addon_ids=[],
+            start_at=datetime(2025, 1, 6, 11, 0, tzinfo=UTC),
+            notes="Commission test",
+            reservation_id=grooming_setup["reservation_id"],
+        )
+
+        appointment.status = GroomingAppointmentStatus.COMPLETED
+        await session.commit()
+
+        created = await commission_service.build_from_completed_appointments(
+            session,
+            account_id=grooming_setup["account_id"],
+            date_from=appointment.start_at.date(),
+            date_to=appointment.start_at.date(),
+        )
+        assert created == 1
+
+        payout_row = await session.execute(
+            select(CommissionPayout).where(
+                CommissionPayout.appointment_id == appointment.id
+            )
+        )
+        payout = payout_row.scalar_one()
+        assert payout.location_id == grooming_setup["location_id"]
 
 
 @pytest.mark.asyncio

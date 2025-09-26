@@ -11,7 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import CommissionPayout
-from app.models.grooming import GroomingAppointment, GroomingAppointmentStatus
+from app.models.grooming import (
+    GroomingAppointment,
+    GroomingAppointmentStatus,
+    Specialist,
+)
 
 
 def _to_money(value: Decimal | float | str) -> Decimal:
@@ -57,13 +61,24 @@ async def build_from_completed_appointments(
         if exists.first():
             continue
         commission_amount = _to_money(appointment.commission_amount or 0)
+        specialist_location_id = None
+        if appointment.specialist is not None:
+            specialist_location_id = appointment.specialist.location_id
+        else:
+            location_row = await session.execute(
+                select(Specialist.location_id).where(
+                    Specialist.id == appointment.specialist_id
+                )
+            )
+            specialist_location_id = location_row.scalar_one_or_none()
+
+        if specialist_location_id is None:
+            # Specialist was removed or misconfigured; skip until data is corrected.
+            continue
+
         payout = CommissionPayout(
             account_id=appointment.account_id,
-            location_id=(
-                appointment.specialist.location_id
-                if appointment.specialist
-                else appointment.account_id
-            ),
+            location_id=specialist_location_id,
             appointment_id=appointment.id,
             specialist_id=appointment.specialist_id,
             basis_amount=appointment.price_snapshot,
