@@ -185,23 +185,22 @@ async def _resolve_account(
 ) -> Account:
     settings = _SETTINGS_CACHE()
     slug = explicit_slug or settings.portal_account_slug
-    if not slug:
+    candidates = select(Account).order_by(Account.created_at.asc())
+
+    if slug:
+        result = await session.execute(
+            select(Account).where(Account.slug == slug.lower())
+        )
+        account = result.scalar_one_or_none()
+        if account is not None:
+            return account
+
+    fallback = await session.execute(candidates.limit(1))
+    account = fallback.scalar_one_or_none()
+    if account is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Portal registration is not configured",
-        )
-    slug = slug.lower()
-    result = await session.execute(select(Account).where(Account.slug == slug))
-    account = result.scalar_one_or_none()
-    if account is None:
-        fallback = await session.execute(
-            select(Account).order_by(Account.created_at.asc()).limit(1)
-        )
-        account = fallback.scalar_one_or_none()
-    if account is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Account not found",
         )
     return account
 
