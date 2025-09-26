@@ -1,17 +1,26 @@
-"""Invoice creation and totals service."""
+"""Invoice creation, totals, and payment utilities."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Deposit, DepositStatus, Invoice, InvoiceItem, Pet, Reservation
+from app.models import (
+    Deposit,
+    DepositStatus,
+    Invoice,
+    InvoiceItem,
+    InvoiceStatus,
+    Pet,
+    Reservation,
+)
 from app.services import pricing_service
 
 _MONEY_PLACES: Final = Decimal("0.01")
@@ -134,6 +143,51 @@ async def compute_totals(
     )
 
 
+async def amount_due(
+    session: AsyncSession,
+    *,
+    invoice_id: UUID,
+    account_id: UUID,
+) -> Decimal:
+    """Return the remaining balance for an invoice after held deposits."""
+
+    invoice = await _load_invoice(session, invoice_id, account_id)
+    if invoice is None:
+        raise ValueError("Invoice not found")
+
+    total = (invoice.total or Decimal("0")).quantize(_MONEY_PLACES)
+    held_raw = await session.scalar(
+        select(func.coalesce(func.sum(Deposit.amount), 0)).where(
+            Deposit.reservation_id == invoice.reservation_id,
+            Deposit.account_id == account_id,
+            Deposit.status == DepositStatus.HELD,
+        )
+    )
+    held = Decimal(held_raw or 0).quantize(_MONEY_PLACES)
+    due = total - held
+    if due <= Decimal("0"):
+        return Decimal("0.00")
+    return due.quantize(_MONEY_PLACES)
+
+
+async def invoice_paid(
+    session: AsyncSession,
+    *,
+    invoice_id: UUID,
+    account_id: UUID,
+) -> Invoice:
+    """Mark an invoice as paid and return the hydrated invoice."""
+
+    invoice = await _load_invoice(session, invoice_id, account_id)
+    if invoice is None:
+        raise ValueError("Invoice not found")
+    invoice.status = InvoiceStatus.PAID
+    invoice.paid_at = datetime.now(UTC)
+    await session.commit()
+    await session.refresh(invoice)
+    return invoice
+
+
 async def consume_reservation_deposits(
     session: AsyncSession,
     *,
@@ -235,13 +289,18 @@ async def _load_reservation(
 
 
 async def _load_invoice(
-    session: AsyncSession, invoice_id: UUID, account_id: UUID
+    session: AsyncSession,
+    invoice_id: UUID,
+    account_id: UUID,
 ) -> Invoice | None:
     stmt = (
         select(Invoice)
         .options(
             selectinload(Invoice.items),
-            selectinload(Invoice.reservation),
+            selectinload(Invoice.reservation)
+            .selectinload(Reservation.pet)
+            .selectinload(Pet.owner),
+            selectinload(Invoice.reservation).selectinload(Reservation.deposits),
         )
         .where(Invoice.id == invoice_id, Invoice.account_id == account_id)
     )

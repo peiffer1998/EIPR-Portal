@@ -42,7 +42,6 @@ class Settings(BaseSettings):
     stripe_terminal_location: str | None = Field(
         default=None, alias="STRIPE_TERMINAL_LOCATION"
     )
-
     payments_webhook_verify: bool = Field(default=True, alias="PAYMENTS_WEBHOOK_VERIFY")
     portal_account_slug: str | None = Field(default=None, alias="PORTAL_ACCOUNT_SLUG")
 

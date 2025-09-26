@@ -111,6 +111,12 @@ from app.schemas.pricing import (
     PricingQuoteRead,
     PricingQuoteRequest,
 )
+from app.schemas.payments import (
+    PaymentIntentCreateRequest,
+    PaymentIntentCreateResponse,
+    PaymentRefundRequest,
+    PaymentRefundResponse,
+)
 from app.schemas.reporting import OccupancyEntry, RevenueEntry, RevenueReport
 from app.schemas.reservation import (
     ReservationCreate,
@@ -221,6 +227,10 @@ __all__ = [
     "PetIconAssignmentRead",
     "DepositActionRequest",
     "DepositRead",
+    "PaymentIntentCreateRequest",
+    "PaymentIntentCreateResponse",
+    "PaymentRefundRequest",
+    "PaymentRefundResponse",
     "PricingLineRead",
     "PricingQuoteRead",
     "PricingQuoteRequest",

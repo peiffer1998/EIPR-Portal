@@ -1,32 +1,32 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `backend/app/` holds the FastAPI application (routers, services, models, schemas) and domain modules like reservations, billing, and notifications.
-- `backend/tests/` mirrors the app modules with pytest suites; add new tests beside the code they exercise.
-- `backend/alembic/` contains database migrations; place new revisions under `versions/` with descriptive filenames.
-- `docs/` captures operational guides (capacity, billing, ops tracks). Create new track docs here when adding features.
+- `backend/app/` contains the FastAPI stack (routers, services, models, schemas, integrations). Domain packages mirror the business areas: reservations, billing, notifications, capacity, etc.
+- `backend/tests/` mirrors the module layout with pytest suites; place new tests beside the feature they exercise.
+- `backend/alembic/versions/` stores database migrations. Use descriptive filenames and branch labels when required by a track.
+- `backend/docs/` holds runbooks for each track (capacity, billing, ops). Add new guides here rather than editing `README.md` directly.
 
 ## Build, Test, and Development Commands
-- `make up` / `docker compose up -d --build` starts the full stack (API, Postgres, Redis, Mailhog, MinIO).
-- `docker compose exec api alembic upgrade head` applies the latest migrations inside the container.
-- `.venv/bin/python -m pytest -q` or `docker compose exec api pytest -q` runs the backend test suite.
-- `ruff check .` and `mypy .` must be clean before every commit; `make fmt` auto-formats with ruff/black.
+- `make up` or `docker compose up -d --build` launches the API with Postgres, Redis, Mailhog, and MinIO.
+- `docker compose exec api alembic upgrade head` applies migrations inside the container; always run before feature testing.
+- `.venv/bin/python -m pytest -q` (or `docker compose exec api pytest -q`) runs the full backend suite.
+- `ruff check .`, `mypy .`, and `make fmt` keep formatting consistent; commits should be lint- and type-clean.
 
 ## Coding Style & Naming Conventions
-- Follow PEP 8 with 4-space indentation. Keep modules and files in `snake_case`, classes in `PascalCase`, and functions/variables in `snake_case`.
-- All new modules require type hints. Use `Decimal` for currency and prefer dependency-injected services over direct imports.
-- When expanding routers, register them in `backend/app/api/v1/__init__.py` without reordering existing includes.
+- Follow PEP 8 with 4-space indentation. Modules/files use `snake_case`; classes use `PascalCase`; async service functions stay in `snake_case` with full type hints.
+- Use `Decimal` for currency math, and prefer dependency helpers (`deps.get_db_session`, `deps.get_current_active_user`) over manual session management.
+- When adding routers, append includes in `backend/app/api/v1/__init__.py` without reordering existing lines.
 
 ## Testing Guidelines
-- Use pytest with factory fixtures from `backend/tests/conftest.py`. Name tests `test_<module>_<behavior>`.
-- Include both service-level and API-level tests when adding endpoints. Seed deterministic data in fixtures to avoid timezone drift.
-- Target coverage ≥85% as enforced by CI; add regression tests for every bug fix.
+- Build fixtures with helpers from `backend/tests/conftest.py`. Name tests `test_<module>_<behavior>` and colocate service/API coverage.
+- Deterministic dates (UTC) avoid timezone drift. Target ≥85% coverage as enforced by CI.
+- Regenerate seed data or factories when adding migrations so tests remain idempotent.
 
 ## Commit & Pull Request Guidelines
-- Commit messages follow the `type(scope): summary` pattern seen in history (e.g., `feat(reservations): waitlist promote flow`).
-- Keep commits scoped to a checklist step; run lint, type check, and tests before committing.
-- PRs should describe the feature, testing performed, migrations added, and any follow-up tasks; attach screenshots or curl snippets when UI/response changes apply.
+- Follow the `type(scope): summary` convention (e.g., `feat(reservations): lifecycle transitions`). Keep each checklist step as a focused commit.
+- Document migrations, seeds, and new endpoints in PR descriptions. Include curl examples or screenshots whenever responses/UI change.
+- Before pushing, verify `ruff`, `mypy`, and `pytest` locally; CI expects a clean run.
 
 ## Security & Configuration Tips
-- Store secrets in `.env` variants; never commit real keys. Use provided Mailhog, MinIO, and Stripe test credentials for local runs.
-- Enforce role checks via `get_current_active_user` dependencies. Audit events must capture actor, action, and IP for sensitive mutations.
+- Store secrets in `.env` variants; never commit live credentials. Local `.env.example` already lists required keys.
+- Enforce role checks via the auth dependencies and ensure audit events capture actor, IP, and action for sensitive mutations.
