@@ -42,6 +42,11 @@ from app.models.grooming import (
     SpecialistSchedule,
     SpecialistTimeOff,
 )
+from app.models.report_card import (
+    ReportCard,
+    ReportCardMedia,
+    ReportCardStatus,
+)
 
 __all__ = [
     "Account",
@@ -99,4 +104,7 @@ __all__ = [
     "GroomingAppointment",
     "GroomingAppointmentStatus",
     "CommissionType",
+    "ReportCard",
+    "ReportCardMedia",
+    "ReportCardStatus",
 ]
