@@ -14,6 +14,8 @@ import Pets from './routes/Pets';
 import Reservations from './routes/Reservations';
 import Invoices from './routes/Invoices';
 import Uploads from './routes/Uploads';
+import ReportCards from './routes/ReportCards';
+import ReportCardDetail from './routes/ReportCardDetail';
 
 const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const { isAuthenticated } = useAuth();
@@ -46,6 +48,8 @@ createRoot(root).render(
               <Route path="pets" element={<Pets />} />
               <Route path="reservations" element={<Reservations />} />
               <Route path="invoices" element={<Invoices />} />
+              <Route path="report-cards" element={<ReportCards />} />
+              <Route path="report-cards/:cardId" element={<ReportCardDetail />} />
               <Route path="uploads" element={<Uploads />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

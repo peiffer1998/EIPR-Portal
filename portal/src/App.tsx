@@ -7,6 +7,7 @@ const navLinks = [
   { to: '/pets', label: 'Pets' },
   { to: '/reservations', label: 'Reservations' },
   { to: '/invoices', label: 'Invoices' },
+  { to: '/report-cards', label: 'Report Cards' },
   { to: '/uploads', label: 'Uploads' },
 ];
 

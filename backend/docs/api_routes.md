@@ -1,86 +1,117 @@
-# API Route Index
-
-Generated from FastAPI routing table.
-
-- `/`
-- `/api/v1/accounts`
-- `/api/v1/accounts/{account_id}`
-- `/api/v1/agreements/signatures`
-- `/api/v1/agreements/templates`
-- `/api/v1/agreements/templates/{template_id}`
-- `/api/v1/auth/invitations/accept`
-- `/api/v1/auth/password-reset/confirm`
-- `/api/v1/auth/password-reset/request`
-- `/api/v1/auth/register`
-- `/api/v1/auth/token`
-- `/api/v1/documents`
-- `/api/v1/documents/{document_id}`
-- `/api/v1/feeding/today`
-- `/api/v1/health`
-- `/api/v1/icons`
-- `/api/v1/icons/owners`
-- `/api/v1/icons/owners/{assignment_id}`
-- `/api/v1/icons/pets`
-- `/api/v1/icons/pets/{assignment_id}`
-- `/api/v1/icons/{icon_id}`
-- `/api/v1/immunizations/evaluate`
-- `/api/v1/immunizations/records`
-- `/api/v1/immunizations/records/{record_id}`
-- `/api/v1/immunizations/types`
-- `/api/v1/immunizations/types/{type_id}`
-- `/api/v1/invoices`
-- `/api/v1/invoices/from-reservation`
-- `/api/v1/invoices/{invoice_id}`
-- `/api/v1/invoices/{invoice_id}/apply-promo`
-- `/api/v1/invoices/{invoice_id}/items`
-- `/api/v1/invoices/{invoice_id}/pay`
-- `/api/v1/locations`
-- `/api/v1/locations/{location_id}`
-- `/api/v1/locations/{location_id}/capacity-rules`
-- `/api/v1/locations/{location_id}/capacity-rules/{rule_id}`
-- `/api/v1/locations/{location_id}/closures`
-- `/api/v1/locations/{location_id}/closures/{closure_id}`
-- `/api/v1/locations/{location_id}/hours`
-- `/api/v1/locations/{location_id}/hours/{hour_id}`
-- `/api/v1/medication/today`
-- `/api/v1/owners`
-- `/api/v1/owners/{owner_id}`
-- `/api/v1/owners/{owner_id}/reservations`
-- `/api/v1/packages`
-- `/api/v1/packages/{package_id}`
-- `/api/v1/payments/create-intent`
-- `/api/v1/payments/dev/simulate-webhook`
-- `/api/v1/payments/refund`
-- `/api/v1/payments/webhook`
-- `/api/v1/pets`
-- `/api/v1/pets/{pet_id}`
-- `/api/v1/pricing/quote`
-- `/api/v1/reports/occupancy`
-- `/api/v1/reports/revenue`
-- `/api/v1/reservations`
-- `/api/v1/reservations/availability/daily`
-- `/api/v1/reservations/{reservation_id}`
-- `/api/v1/reservations/{reservation_id}/check-in`
-- `/api/v1/reservations/{reservation_id}/check-out`
-- `/api/v1/reservations/{reservation_id}/deposits/consume`
-- `/api/v1/reservations/{reservation_id}/deposits/forfeit`
-- `/api/v1/reservations/{reservation_id}/deposits/hold`
-- `/api/v1/reservations/{reservation_id}/deposits/refund`
-- `/api/v1/reservations/{reservation_id}/feeding-schedules`
-- `/api/v1/reservations/{reservation_id}/feeding-schedules/{schedule_id}`
-- `/api/v1/reservations/{reservation_id}/invoice`
-- `/api/v1/reservations/{reservation_id}/medication-schedules`
-- `/api/v1/reservations/{reservation_id}/medication-schedules/{schedule_id}`
-- `/api/v1/run-cards/print`
-- `/api/v1/service-items`
-- `/api/v1/service-items/{item_id}`
-- `/api/v1/users`
-- `/api/v1/users/invitations`
-- `/api/v1/users/me`
-- `/api/v1/users/{user_id}`
-- `/api/v1/waitlist`
-- `/api/v1/waitlist/{entry_id}`
-- `/docs`
-- `/docs/oauth2-redirect`
-- `/openapi.json`
-- `/redoc`
+/
+/api/v1/accounts
+/api/v1/accounts/{account_id}
+/api/v1/agreements/signatures
+/api/v1/agreements/templates
+/api/v1/agreements/templates/{template_id}
+/api/v1/auth/invitations/accept
+/api/v1/auth/password-reset/confirm
+/api/v1/auth/password-reset/request
+/api/v1/auth/register
+/api/v1/auth/token
+/api/v1/documents
+/api/v1/documents/finalize
+/api/v1/documents/{document_id}
+/api/v1/feeding/today
+/api/v1/grooming/addons
+/api/v1/grooming/addons/{addon_id}
+/api/v1/grooming/appointments
+/api/v1/grooming/appointments/{appointment_id}/cancel
+/api/v1/grooming/appointments/{appointment_id}/reschedule
+/api/v1/grooming/appointments/{appointment_id}/status
+/api/v1/grooming/availability
+/api/v1/grooming/reports/commissions
+/api/v1/grooming/reports/load
+/api/v1/grooming/services
+/api/v1/grooming/services/{service_id}
+/api/v1/grooming/specialists
+/api/v1/grooming/specialists/{specialist_id}
+/api/v1/grooming/specialists/{specialist_id}/schedules
+/api/v1/grooming/specialists/{specialist_id}/time-off
+/api/v1/health
+/api/v1/icons
+/api/v1/icons/owners
+/api/v1/icons/owners/{assignment_id}
+/api/v1/icons/pets
+/api/v1/icons/pets/{assignment_id}
+/api/v1/icons/{icon_id}
+/api/v1/immunizations/owners/{owner_id}/immunizations
+/api/v1/immunizations/pets/{pet_id}/immunizations
+/api/v1/immunizations/types
+/api/v1/invoices
+/api/v1/invoices/from-reservation
+/api/v1/invoices/{invoice_id}
+/api/v1/invoices/{invoice_id}/apply-promo
+/api/v1/invoices/{invoice_id}/items
+/api/v1/invoices/{invoice_id}/pay
+/api/v1/locations
+/api/v1/locations/{location_id}
+/api/v1/locations/{location_id}/capacity-rules
+/api/v1/locations/{location_id}/capacity-rules/{rule_id}
+/api/v1/locations/{location_id}/closures
+/api/v1/locations/{location_id}/closures/{closure_id}
+/api/v1/locations/{location_id}/hours
+/api/v1/locations/{location_id}/hours/{hour_id}
+/api/v1/medication/today
+/api/v1/owners
+/api/v1/owners/{owner_id}
+/api/v1/owners/{owner_id}/reservations
+/api/v1/packages
+/api/v1/packages/{package_id}
+/api/v1/payments/confirm
+/api/v1/payments/create-intent
+/api/v1/payments/dev/simulate-webhook
+/api/v1/payments/refund
+/api/v1/payments/webhook
+/api/v1/pets
+/api/v1/pets/{pet_id}
+/api/v1/portal/documents/finalize
+/api/v1/portal/documents/presign
+/api/v1/portal/documents/uploads/{upload_ref}
+/api/v1/portal/invoices
+/api/v1/portal/invoices/{invoice_id}
+/api/v1/portal/login
+/api/v1/portal/me
+/api/v1/portal/payments/create-intent
+/api/v1/portal/register_owner
+/api/v1/portal/report-cards
+/api/v1/portal/report-cards/{card_id}
+/api/v1/portal/reservations/request
+/api/v1/portal/reservations/{reservation_id}/cancel
+/api/v1/pricing/quote
+/api/v1/report-cards
+/api/v1/report-cards/{card_id}
+/api/v1/report-cards/{card_id}/friends
+/api/v1/report-cards/{card_id}/media
+/api/v1/report-cards/{card_id}/send
+/api/v1/reports/exports/sales-receipt
+/api/v1/reports/occupancy
+/api/v1/reports/revenue
+/api/v1/reservations
+/api/v1/reservations/availability/daily
+/api/v1/reservations/{reservation_id}
+/api/v1/reservations/{reservation_id}/check-in
+/api/v1/reservations/{reservation_id}/check-out
+/api/v1/reservations/{reservation_id}/deposits/consume
+/api/v1/reservations/{reservation_id}/deposits/forfeit
+/api/v1/reservations/{reservation_id}/deposits/hold
+/api/v1/reservations/{reservation_id}/deposits/refund
+/api/v1/reservations/{reservation_id}/feeding-schedules
+/api/v1/reservations/{reservation_id}/feeding-schedules/{schedule_id}
+/api/v1/reservations/{reservation_id}/invoice
+/api/v1/reservations/{reservation_id}/medication-schedules
+/api/v1/reservations/{reservation_id}/medication-schedules/{schedule_id}
+/api/v1/run-cards/print
+/api/v1/service-items
+/api/v1/service-items/{item_id}
+/api/v1/storage/usage
+/api/v1/users
+/api/v1/users/invitations
+/api/v1/users/me
+/api/v1/users/{user_id}
+/api/v1/waitlist
+/api/v1/waitlist/{entry_id}
+/docs
+/docs/oauth2-redirect
+/openapi.json
+/redoc

@@ -61,6 +61,37 @@ export interface ApiDocument {
   sha256?: string | null;
 }
 
+export interface ApiReportCardMedia {
+  id: string;
+  position: number;
+  display_url: string | null;
+  document: ApiDocument;
+}
+
+export interface ApiReportCardFriend {
+  id: string;
+  name: string;
+  pet_type: string;
+}
+
+export interface ApiReportCard {
+  id: string;
+  account_id: string;
+  owner_id: string;
+  pet_id: string;
+  occurred_on: string;
+  title: string | null;
+  summary: string | null;
+  rating: number | null;
+  status: string;
+  pet_name: string | null;
+  owner_name: string | null;
+  media: ApiReportCardMedia[];
+  friends: ApiReportCardFriend[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PortalMeApiResponse {
   owner: ApiOwnerSummary;
   pets: ApiPet[];
@@ -186,5 +217,17 @@ export const finalizeDocument = async (payload: {
     pet_id: payload.petId,
     notes: payload.notes,
   });
+  return data;
+};
+
+export const fetchReportCards = async (petId?: string): Promise<ApiReportCard[]> => {
+  const { data } = await api.get<ApiReportCard[]>('/portal/report-cards', {
+    params: petId ? { pet_id: petId } : undefined,
+  });
+  return data;
+};
+
+export const fetchReportCardDetail = async (cardId: string): Promise<ApiReportCard> => {
+  const { data } = await api.get<ApiReportCard>(`/portal/report-cards/${cardId}`);
   return data;
 };
