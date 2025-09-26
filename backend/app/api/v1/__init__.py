@@ -24,6 +24,7 @@ from . import (
     owners,
     portal,
     portal_report_cards,
+    portal_store,
     report_cards,
     packages,
     store,
@@ -54,6 +55,7 @@ router.include_router(
     prefix="/portal",
     tags=["portal-report-cards"],
 )
+router.include_router(portal_store.router)
 router.include_router(
     reservations.router, prefix="/reservations", tags=["reservations"]
 )
