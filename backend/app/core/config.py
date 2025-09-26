@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     twilio_messaging_service_sid: str | None = Field(
         default=None, alias="TWILIO_MESSAGING_SERVICE_SID"
     )
+    dev_sms_echo: bool = Field(default=False, alias="DEV_SMS_ECHO")
 
     s3_endpoint_url: str | None = Field(default=None, alias="S3_ENDPOINT_URL")
     s3_bucket: str | None = Field(default=None, alias="S3_BUCKET")
