@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0011"
@@ -11,24 +12,28 @@ down_revision = "0010"
 branch_labels = None
 depends_on = None
 
-immunization_status_enum = sa.Enum(
+immunization_status_enum = postgresql.ENUM(
     "valid",
     "expiring",
     "expired",
     name="immunizationstatus",
+    create_type=False,
 )
 
-icon_entity_enum = sa.Enum(
+icon_entity_enum = postgresql.ENUM(
     "pet",
     "owner",
     "reservation",
     name="iconentity",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
     conn = op.get_bind()
     if conn.dialect.name == "postgresql":
+        conn.execute(sa.text("DROP TYPE IF EXISTS iconentity"))
+        conn.execute(sa.text("DROP TYPE IF EXISTS immunizationstatus"))
         immunization_status_enum.create(conn, checkfirst=True)
         icon_entity_enum.create(conn, checkfirst=True)
 

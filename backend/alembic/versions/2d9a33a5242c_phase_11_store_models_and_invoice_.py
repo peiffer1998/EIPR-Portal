@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "2d9a33a5242c"
 down_revision = "0017_phase_10_report_cards_and_media"
@@ -11,22 +12,49 @@ branch_labels = None
 depends_on = None
 
 
-package_application_enum = sa.Enum(
-    "DAYCARE", "BOARDING", "GROOMING", "CURRENCY", name="packageapplicationtype"
+package_application_enum = postgresql.ENUM(
+    "DAYCARE",
+    "BOARDING",
+    "GROOMING",
+    "CURRENCY",
+    name="packageapplicationtype",
+    create_type=False,
 )
-package_credit_source_enum = sa.Enum(
-    "PURCHASE", "CONSUME", "ADJUST", name="packagecreditsource"
+package_credit_source_enum = postgresql.ENUM(
+    "PURCHASE",
+    "CONSUME",
+    "ADJUST",
+    name="packagecreditsource",
+    create_type=False,
 )
-store_credit_source_enum = sa.Enum(
-    "PURCHASE_GC", "REDEEM_GC", "REFUND", "MANUAL", "CONSUME", name="storecreditsource"
+store_credit_source_enum = postgresql.ENUM(
+    "PURCHASE_GC",
+    "REDEEM_GC",
+    "REFUND",
+    "MANUAL",
+    "CONSUME",
+    name="storecreditsource",
+    create_type=False,
 )
-credit_application_type_enum = sa.Enum(
-    "PACKAGE", "STORE_CREDIT", "GIFT_CERTIFICATE", name="creditapplicationtype"
+credit_application_type_enum = postgresql.ENUM(
+    "PACKAGE",
+    "STORE_CREDIT",
+    "GIFT_CERTIFICATE",
+    name="creditapplicationtype",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
     bind = op.get_bind()
+    for type_name in (
+        "creditapplicationtype",
+        "storecreditsource",
+        "packagecreditsource",
+        "packageapplicationtype",
+    ):
+        bind.execute(sa.text(f"DROP TYPE IF EXISTS {type_name}"))
+
     for enum in (
         package_application_enum,
         package_credit_source_enum,
@@ -45,7 +73,7 @@ def upgrade() -> None:
             "credits_per_package", sa.Integer(), nullable=False, server_default="1"
         ),
         sa.Column("price", sa.Numeric(12, 2), nullable=False),
-        sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -72,7 +100,7 @@ def upgrade() -> None:
         sa.Column("recipient_owner_id", sa.Uuid(), nullable=True),
         sa.Column("recipient_email", sa.String(length=255), nullable=True),
         sa.Column("expires_on", sa.Date(), nullable=True),
-        sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

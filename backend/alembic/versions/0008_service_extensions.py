@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0008"
@@ -13,11 +14,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    service_kind_enum = sa.Enum("service", "retail", name="servicecatalogkind")
+    op.execute("DROP TYPE IF EXISTS servicecatalogkind")
+    op.execute("DROP TYPE IF EXISTS waitliststatus")
+
+    service_kind_enum = postgresql.ENUM(
+        "service", "retail", name="servicecatalogkind", create_type=False
+    )
     service_kind_enum.create(op.get_bind(), checkfirst=True)
 
-    waitlist_status_enum = sa.Enum(
-        "pending", "offered", "confirmed", "canceled", name="waitliststatus"
+    waitlist_status_enum = postgresql.ENUM(
+        "pending",
+        "offered",
+        "confirmed",
+        "canceled",
+        name="waitliststatus",
+        create_type=False,
     )
     waitlist_status_enum.create(op.get_bind(), checkfirst=True)
 
@@ -274,5 +285,5 @@ def downgrade() -> None:
     )
     op.drop_table("service_catalog_items")
 
-    sa.Enum(name="waitliststatus").drop(op.get_bind(), checkfirst=False)
-    sa.Enum(name="servicecatalogkind").drop(op.get_bind(), checkfirst=False)
+    postgresql.ENUM(name="waitliststatus").drop(op.get_bind(), checkfirst=True)
+    postgresql.ENUM(name="servicecatalogkind").drop(op.get_bind(), checkfirst=True)

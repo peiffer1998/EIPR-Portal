@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0017_phase_10_report_cards_and_media"
@@ -11,15 +12,18 @@ down_revision = "0016_merge_health_branch"
 branch_labels = None
 depends_on = None
 
-report_card_status_enum = sa.Enum(
+report_card_status_enum = postgresql.ENUM(
     "draft",
     "sent",
     name="reportcardstatus",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
-    report_card_status_enum.create(op.get_bind(), checkfirst=True)
+    bind = op.get_bind()
+    bind.execute(sa.text("DROP TYPE IF EXISTS reportcardstatus"))
+    report_card_status_enum.create(bind, checkfirst=True)
 
     op.create_table(
         "report_cards",

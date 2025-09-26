@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0015_phase_9_grooming"
@@ -12,8 +13,10 @@ branch_labels = None
 depends_on = None
 
 
-commission_enum = sa.Enum("percent", "amount", name="commissiontype")
-appointment_status_enum = sa.Enum(
+commission_enum = postgresql.ENUM(
+    "percent", "amount", name="commissiontype", create_type=False
+)
+appointment_status_enum = postgresql.ENUM(
     "requested",
     "scheduled",
     "checked_in",
@@ -22,10 +25,18 @@ appointment_status_enum = sa.Enum(
     "canceled",
     "no_show",
     name="groomingappointmentstatus",
+    create_type=False,
 )
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    for type_name in ("commissiontype", "groomingappointmentstatus"):
+        bind.execute(sa.text(f"DROP TYPE IF EXISTS {type_name}"))
+
+    commission_enum.create(bind, checkfirst=True)
+    appointment_status_enum.create(bind, checkfirst=True)
+
     op.create_table(
         "specialists",
         sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
@@ -326,5 +337,6 @@ def downgrade() -> None:
     op.drop_table("specialist_time_off")
     op.drop_table("specialist_schedules")
     op.drop_table("specialists")
-    appointment_status_enum.drop(op.get_bind(), checkfirst=False)
-    commission_enum.drop(op.get_bind(), checkfirst=False)
+    bind = op.get_bind()
+    appointment_status_enum.drop(bind, checkfirst=True)
+    commission_enum.drop(bind, checkfirst=True)

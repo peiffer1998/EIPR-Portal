@@ -15,7 +15,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    payment_status_enum = sa.Enum(
+    bind = op.get_bind()
+    bind.execute(sa.text("DROP TYPE IF EXISTS paymenttransactionstatus"))
+
+    payment_status_enum = postgresql.ENUM(
         "requires_payment_method",
         "requires_confirmation",
         "processing",
@@ -25,8 +28,9 @@ def upgrade() -> None:
         "refunded",
         "partial_refund",
         name="paymenttransactionstatus",
+        create_type=False,
     )
-    payment_status_enum.create(op.get_bind(), checkfirst=True)
+    payment_status_enum.create(bind, checkfirst=True)
 
     jsonb_type = postgresql.JSONB(astext_type=sa.Text()).with_variant(
         sa.JSON(), "sqlite"
@@ -102,4 +106,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_table("payment_events")
     op.drop_table("payment_transactions")
-    sa.Enum(name="paymenttransactionstatus").drop(op.get_bind(), checkfirst=True)
+    postgresql.ENUM(name="paymenttransactionstatus").drop(
+        op.get_bind(), checkfirst=True
+    )

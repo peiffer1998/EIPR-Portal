@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -294,7 +294,7 @@ def _remaining_total(total: Decimal | None, credits: Decimal | None) -> Decimal:
 
 
 async def _load_owner(session: AsyncSession, owner_id: UUID) -> OwnerProfile | None:
-    stmt: Select[OwnerProfile] = (
+    stmt = (
         select(OwnerProfile)
         .options(selectinload(OwnerProfile.user))
         .where(OwnerProfile.id == owner_id)
@@ -313,7 +313,7 @@ async def _load_package_type(
 
 
 async def _fetch_primary_pet(session: AsyncSession, owner_id: UUID) -> Pet | None:
-    stmt: Select[Pet] = (
+    stmt = (
         select(Pet)
         .where(Pet.owner_id == owner_id)
         .order_by(Pet.created_at.asc())
@@ -327,7 +327,7 @@ async def _fetch_primary_pet(session: AsyncSession, owner_id: UUID) -> Pet | Non
 async def _fetch_default_location(
     session: AsyncSession, account_id: UUID
 ) -> Location | None:
-    stmt: Select[Location] = (
+    stmt = (
         select(Location)
         .where(Location.account_id == account_id)
         .order_by(Location.created_at.asc())
@@ -340,7 +340,7 @@ async def _fetch_default_location(
 async def _load_invoice_for_application(
     session: AsyncSession, invoice_id: UUID, account_id: UUID
 ) -> Invoice | None:
-    stmt: Select[Invoice] = (
+    stmt = (
         select(Invoice)
         .options(
             selectinload(Invoice.reservation)

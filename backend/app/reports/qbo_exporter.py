@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 
-from sqlalchemy import Select, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -46,7 +46,7 @@ async def export_sales_receipts(
     start_dt = datetime.combine(target_date, time.min, tzinfo=UTC)
     end_dt = start_dt + timedelta(days=1)
 
-    stmt: Select[Invoice] = (
+    stmt = (
         select(Invoice)
         .where(
             Invoice.account_id == account_id,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0007"
@@ -13,25 +14,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_type WHERE typname = 'staffinvitationstatus'
-            ) THEN
-                CREATE TYPE staffinvitationstatus AS ENUM (
-                    'pending',
-                    'accepted',
-                    'revoked',
-                    'expired'
-                );
-            END IF;
-        END$$;
-        """
-    )
-
-    invitation_status_enum = sa.Enum(
+    invitation_status_enum = postgresql.ENUM(
         "pending",
         "accepted",
         "revoked",
@@ -39,6 +22,8 @@ def upgrade() -> None:
         name="staffinvitationstatus",
         create_type=False,
     )
+    op.execute("DROP TYPE IF EXISTS staffinvitationstatus")
+    invitation_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "staff_invitations",
@@ -99,15 +84,4 @@ def downgrade() -> None:
     op.drop_index("ix_staff_invitations_email", table_name="staff_invitations")
     op.drop_index("ix_staff_invitations_account_id", table_name="staff_invitations")
     op.drop_table("staff_invitations")
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM pg_type WHERE typname = 'staffinvitationstatus'
-            ) THEN
-                DROP TYPE staffinvitationstatus;
-            END IF;
-        END$$;
-        """
-    )
+    postgresql.ENUM(name="staffinvitationstatus").drop(op.get_bind(), checkfirst=True)

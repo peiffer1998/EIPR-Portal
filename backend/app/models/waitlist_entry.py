@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     String,
+    Text,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -34,7 +35,7 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 
-JSONB_TYPE = JSONB(astext_type=text("TEXT")).with_variant(JSON(), "sqlite")
+JSONB_TYPE = JSONB(astext_type=Text()).with_variant(JSON(), "sqlite")
 
 
 class WaitlistStatus(str, enum.Enum):

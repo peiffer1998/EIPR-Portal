@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import Select, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -219,7 +219,7 @@ async def redeem_gift_certificate(
 
 
 async def _load_owner(session: AsyncSession, owner_id: UUID) -> OwnerProfile | None:
-    stmt: Select[OwnerProfile] = (
+    stmt = (
         select(OwnerProfile)
         .where(OwnerProfile.id == owner_id)
         .options(selectinload(OwnerProfile.user))
@@ -231,7 +231,7 @@ async def _load_owner(session: AsyncSession, owner_id: UUID) -> OwnerProfile | N
 async def _load_certificate(
     session: AsyncSession, code: str, account_id: UUID
 ) -> GiftCertificate | None:
-    stmt: Select[GiftCertificate] = select(GiftCertificate).where(
+    stmt = select(GiftCertificate).where(
         GiftCertificate.code == code,
         GiftCertificate.account_id == account_id,
     )
@@ -240,7 +240,7 @@ async def _load_certificate(
 
 
 async def _fetch_primary_pet(session: AsyncSession, owner_id: UUID) -> Pet | None:
-    stmt: Select[Pet] = (
+    stmt = (
         select(Pet)
         .where(Pet.owner_id == owner_id)
         .order_by(Pet.created_at.asc())
@@ -253,7 +253,7 @@ async def _fetch_primary_pet(session: AsyncSession, owner_id: UUID) -> Pet | Non
 async def _fetch_default_location(
     session: AsyncSession, account_id: UUID
 ) -> Location | None:
-    stmt: Select[Location] = (
+    stmt = (
         select(Location)
         .where(Location.account_id == account_id)
         .order_by(Location.created_at.asc())

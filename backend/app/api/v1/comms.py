@@ -6,7 +6,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import Select, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -83,7 +83,7 @@ async def _notify_account_staff(
     title: str,
     body: str,
 ) -> None:
-    stmt: Select[User] = select(User).where(
+    stmt = select(User).where(
         User.account_id == account_id,
         User.role != UserRole.PET_PARENT,
     )
@@ -284,15 +284,15 @@ async def sms_webhook(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
 ) -> None:
     form = await request.form()
-    from_number = form.get("From")
-    body = form.get("Body")
-    message_sid = form.get("MessageSid")
-    if not from_number or not body:
+    from_raw = form.get("From")
+    body_raw = form.get("Body")
+    sid_raw = form.get("MessageSid")
+    if not isinstance(from_raw, str) or not isinstance(body_raw, str):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Missing fields"
         )
     try:
-        phone_e164 = sms_service.normalize_phone(from_number)
+        phone_e164 = sms_service.normalize_phone(from_raw)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
@@ -310,8 +310,8 @@ async def sms_webhook(
         account_id=conversation.account_id,
         owner_id=conversation.owner_id,
         phone_e164=phone_e164,
-        body=body,
-        provider_message_id=message_sid,
+        body=body_raw,
+        provider_message_id=sid_raw if isinstance(sid_raw, str) else None,
     )
     await _notify_account_staff(
         session,
@@ -406,6 +406,11 @@ async def mark_notification_read(
     if notification is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found"
+        )
+    if notification.read_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Notification did not record read timestamp",
         )
     return NotificationMarkReadResponse(
         id=notification.id, read_at=notification.read_at

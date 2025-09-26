@@ -14,16 +14,23 @@ depends_on = None
 
 
 def upgrade() -> None:
-    pricerule_enum = sa.Enum(
+    bind = op.get_bind()
+
+    op.execute("DROP TYPE IF EXISTS priceruletype")
+    op.execute("DROP TYPE IF EXISTS promotionkind")
+
+    pricerule_enum = postgresql.ENUM(
         "peak_date",
         "late_checkout",
         "lodging_surcharge",
         "vip",
         name="priceruletype",
+        create_type=False,
     )
-    promotion_enum = sa.Enum("percent", "amount", name="promotionkind")
+    promotion_enum = postgresql.ENUM(
+        "percent", "amount", name="promotionkind", create_type=False
+    )
 
-    bind = op.get_bind()
     pricerule_enum.create(bind, checkfirst=True)
     promotion_enum.create(bind, checkfirst=True)
 
@@ -95,5 +102,5 @@ def downgrade() -> None:
     op.drop_table("price_rules")
 
     bind = op.get_bind()
-    sa.Enum(name="promotionkind").drop(bind, checkfirst=True)
-    sa.Enum(name="priceruletype").drop(bind, checkfirst=True)
+    postgresql.ENUM(name="promotionkind").drop(bind, checkfirst=True)
+    postgresql.ENUM(name="priceruletype").drop(bind, checkfirst=True)

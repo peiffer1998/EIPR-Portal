@@ -7,7 +7,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
+from sqlalchemy.sql.selectable import Exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,9 +43,7 @@ def _segment_filter(segment: dict[str, Any] | None) -> dict[str, Any]:
     return segment or {}
 
 
-def _upcoming_reservations_clause(
-    segment: dict[str, Any], owner_id_field
-) -> Select[bool]:
+def _upcoming_reservations_clause(segment: dict[str, Any], owner_id_field) -> Exists:
     now = datetime.now(UTC)
     stmt = (
         select(Reservation.id)

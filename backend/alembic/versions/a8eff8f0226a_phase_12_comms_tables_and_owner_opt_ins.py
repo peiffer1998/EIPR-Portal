@@ -226,8 +226,10 @@ def upgrade() -> None:
         ),
     )
 
-    op.execute("UPDATE owner_profiles SET email_opt_in = 1 WHERE email_opt_in IS NULL")
-    op.execute("UPDATE owner_profiles SET sms_opt_in = 0 WHERE sms_opt_in IS NULL")
+    op.execute(
+        "UPDATE owner_profiles SET email_opt_in = TRUE WHERE email_opt_in IS NULL"
+    )
+    op.execute("UPDATE owner_profiles SET sms_opt_in = FALSE WHERE sms_opt_in IS NULL")
     bind = op.get_bind()
     if bind.dialect.name != "sqlite":
         op.alter_column("owner_profiles", "email_opt_in", server_default=None)

@@ -291,9 +291,13 @@ async def get_owner_profile(
     *,
     account_id: uuid.UUID,
 ) -> OwnerProfile | None:
-    stmt = select(OwnerProfile).where(
-        OwnerProfile.id == owner_id,
-        OwnerProfile.account_id == account_id,
+    stmt = (
+        select(OwnerProfile)
+        .join(OwnerProfile.user)
+        .where(
+            OwnerProfile.id == owner_id,
+            User.account_id == account_id,
+        )
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()

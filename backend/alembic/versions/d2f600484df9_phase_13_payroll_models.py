@@ -14,14 +14,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    tip_policy_enum = sa.Enum(
+    tip_policy_enum = postgresql.ENUM(
         "direct_to_staff",
         "pooled_by_hours",
         "pooled_equal",
         "appointment_direct",
         name="tippolicy",
+        create_type=False,
     )
     bind = op.get_bind()
+    bind.execute(sa.text("DROP TYPE IF EXISTS tippolicy"))
     tip_policy_enum.create(bind, checkfirst=True)
 
     op.create_table(
@@ -286,11 +288,12 @@ def downgrade() -> None:
     op.drop_index("ix_pay_rate_history_user", table_name="pay_rate_history")
     op.drop_table("pay_rate_history")
     op.drop_table("payroll_periods")
-    tip_policy_enum = sa.Enum(
+    tip_policy_enum = postgresql.ENUM(
         "direct_to_staff",
         "pooled_by_hours",
         "pooled_equal",
         "appointment_direct",
         name="tippolicy",
+        create_type=False,
     )
     tip_policy_enum.drop(op.get_bind(), checkfirst=True)

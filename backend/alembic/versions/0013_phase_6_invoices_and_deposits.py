@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0013"
@@ -34,12 +35,15 @@ def upgrade() -> None:
 
     op.execute("UPDATE invoices SET subtotal = total_amount, total = total_amount")
 
-    deposit_enum = sa.Enum(
+    op.execute("DROP TYPE IF EXISTS depositstatus")
+
+    deposit_enum = postgresql.ENUM(
         "held",
         "consumed",
         "refunded",
         "forfeited",
         name="depositstatus",
+        create_type=False,
     )
     deposit_enum.create(op.get_bind(), checkfirst=True)
 
@@ -86,7 +90,7 @@ def downgrade() -> None:
     op.drop_table("deposits")
 
     bind = op.get_bind()
-    sa.Enum(name="depositstatus").drop(bind, checkfirst=True)
+    postgresql.ENUM(name="depositstatus").drop(bind, checkfirst=True)
 
     op.drop_column("invoices", "total")
     op.drop_column("invoices", "tax_total")

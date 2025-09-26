@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -23,12 +24,13 @@ def upgrade() -> None:
     if conn.dialect.name == "postgresql":
         op.execute("DROP TYPE IF EXISTS immunizationstatus")
 
-    status_enum = sa.Enum(
+    status_enum = postgresql.ENUM(
         "pending",
         "current",
         "expiring",
         "expired",
         name="immunizationstatus",
+        create_type=False,
     )
     if conn.dialect.name == "postgresql":
         status_enum.create(conn, checkfirst=True)
@@ -120,11 +122,12 @@ def downgrade() -> None:
     if conn.dialect.name == "postgresql":
         op.execute("DROP TYPE IF EXISTS immunizationstatus")
 
-    legacy_status_enum = sa.Enum(
+    legacy_status_enum = postgresql.ENUM(
         "valid",
         "expiring",
         "expired",
         name="immunizationstatus",
+        create_type=False,
     )
     if conn.dialect.name == "postgresql":
         legacy_status_enum.create(conn, checkfirst=True)

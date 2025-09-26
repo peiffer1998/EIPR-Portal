@@ -6,7 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -170,7 +170,7 @@ def _remaining_total(total: Decimal | None, credits: Decimal | None) -> Decimal:
 
 
 async def _load_owner(session: AsyncSession, owner_id: UUID) -> OwnerProfile | None:
-    stmt: Select[OwnerProfile] = (
+    stmt = (
         select(OwnerProfile)
         .where(OwnerProfile.id == owner_id)
         .options(selectinload(OwnerProfile.user))
@@ -182,7 +182,7 @@ async def _load_owner(session: AsyncSession, owner_id: UUID) -> OwnerProfile | N
 async def _load_invoice(
     session: AsyncSession, invoice_id: UUID, account_id: UUID
 ) -> Invoice | None:
-    stmt: Select[Invoice] = (
+    stmt = (
         select(Invoice)
         .options(
             selectinload(Invoice.reservation)
