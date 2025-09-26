@@ -4,26 +4,28 @@ from fastapi import APIRouter
 
 from . import (
     accounts,
+    agreements,
     auth,
     capacity,
+    deposits,
     documents,
     feeding,
+    feeding_board,
     health,
-    immunizations,
-    agreements,
     icons,
+    immunizations,
     invoices,
     location_hours,
     locations,
     medication,
-    feeding_board,
     medication_board,
-    run_cards,
     owners,
     packages,
     pets,
+    pricing,
     reports,
     reservations,
+    run_cards,
     service_catalog,
     users,
     waitlist,
@@ -43,6 +45,8 @@ router.include_router(
 router.include_router(feeding.router, tags=["feeding"])
 router.include_router(medication.router, tags=["medication"])
 router.include_router(invoices.router, tags=["invoices"])
+router.include_router(pricing.router, tags=["pricing"])
+router.include_router(deposits.router, tags=["deposits"])
 router.include_router(
     immunizations.router, prefix="/immunizations", tags=["immunizations"]
 )

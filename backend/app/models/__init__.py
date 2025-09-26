@@ -17,6 +17,8 @@ from app.models.location_capacity import LocationCapacityRule
 from app.models.medication_schedule import MedicationSchedule
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet, PetType
+from app.models.pricing import PriceRule, PriceRuleType, Promotion, PromotionKind
+from app.models.deposit import Deposit, DepositStatus
 from app.models.reservation import Reservation, ReservationStatus, ReservationType
 from app.models.staff_invitation import StaffInvitation, StaffInvitationStatus
 from app.models.service_catalog_item import ServiceCatalogItem, ServiceCatalogKind
@@ -59,6 +61,12 @@ __all__ = [
     "LocationHour",
     "LocationClosure",
     "Document",
+    "Deposit",
+    "DepositStatus",
+    "PriceRule",
+    "PriceRuleType",
+    "Promotion",
+    "PromotionKind",
     "Reservation",
     "ReservationStatus",
     "ReservationType",

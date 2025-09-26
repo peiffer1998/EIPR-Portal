@@ -97,8 +97,11 @@ async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
     invoice_id = invoice["id"]
     assert invoice["status"] == "pending"
     assert len(invoice["items"]) == 1
-    assert invoice["items"][0]["description"] == "Reservation base rate"
-    assert invoice["items"][0]["amount"] == "200.00"
+    line = invoice["items"][0]
+    assert line["description"] == "Base rate"
+    assert line["amount"] == "200.00"
+    assert invoice["subtotal"] == "200.00"
+    assert invoice["total"] == "200.00"
 
     list_resp = await client.get("/api/v1/invoices", headers=headers)
     assert list_resp.status_code == 200
@@ -112,6 +115,8 @@ async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
     assert add_item_resp.status_code == 200
     body = add_item_resp.json()
     assert len(body["items"]) == 2
+    assert body["subtotal"] == "225.00"
+    assert body["total"] == "225.00"
     assert body["total_amount"] == "225.00"
 
     pay_resp = await client.post(

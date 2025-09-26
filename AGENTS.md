@@ -1,31 +1,32 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `backend/app/` contains FastAPI services, routers, schemas, and SQLAlchemy models. Keep domain code in feature folders (e.g., `services`, `api/v1`, `models`).
-- `backend/tests/` hosts pytest suites; mirror the runtime package layout when adding coverage.
-- Infrastructure assets (Dockerfile, `docker-compose.yml`, Makefile, `.env.example`) live at the repo root; documentation lives under `backend/docs/`.
+- `backend/app/` holds the FastAPI application (routers, services, models, schemas) and domain modules like reservations, billing, and notifications.
+- `backend/tests/` mirrors the app modules with pytest suites; add new tests beside the code they exercise.
+- `backend/alembic/` contains database migrations; place new revisions under `versions/` with descriptive filenames.
+- `docs/` captures operational guides (capacity, billing, ops tracks). Create new track docs here when adding features.
 
 ## Build, Test, and Development Commands
-- `make up` spins up the full Docker compose stack (API, Postgres, Redis, Mailhog, MinIO).
-- `make down` stops and removes containers; run before rebuilding images.
-- `backend/.venv/bin/python -m pytest -q` executes the full automated test suite locally.
-- `backend/.venv/bin/ruff check backend` and `backend/.venv/bin/mypy --ignore-missing-imports app tests` lint and type-check the backend.
+- `make up` / `docker compose up -d --build` starts the full stack (API, Postgres, Redis, Mailhog, MinIO).
+- `docker compose exec api alembic upgrade head` applies the latest migrations inside the container.
+- `.venv/bin/python -m pytest -q` or `docker compose exec api pytest -q` runs the backend test suite.
+- `ruff check .` and `mypy .` must be clean before every commit; `make fmt` auto-formats with ruff/black.
 
 ## Coding Style & Naming Conventions
-- Follow PEP 8 with 4-space indentation; rely on `ruff` and `black` for formatting fixes.
-- Prefer explicit module paths (e.g., `from app.services import ...`) and snake_case filenames; models use PascalCase names.
-- Commit to async SQLAlchemy patterns (`async def`, `AsyncSession`) throughout API layers.
+- Follow PEP 8 with 4-space indentation. Keep modules and files in `snake_case`, classes in `PascalCase`, and functions/variables in `snake_case`.
+- All new modules require type hints. Use `Decimal` for currency and prefer dependency-injected services over direct imports.
+- When expanding routers, register them in `backend/app/api/v1/__init__.py` without reordering existing includes.
 
 ## Testing Guidelines
-- Use pytest with `asyncio` fixtures; name files `test_*.py` and functions `test_*` mirroring feature modules.
-- Maintain green coverage for suites under `backend/tests/`; add regression tests for every new route, service, or migration.
-- For database migrations, run `PYTHONPATH=. backend/.venv/bin/alembic upgrade head` once the Postgres service is available.
+- Use pytest with factory fixtures from `backend/tests/conftest.py`. Name tests `test_<module>_<behavior>`.
+- Include both service-level and API-level tests when adding endpoints. Seed deterministic data in fixtures to avoid timezone drift.
+- Target coverage ≥85% as enforced by CI; add regression tests for every bug fix.
 
 ## Commit & Pull Request Guidelines
-- Follow the existing Conventional Commit style (`feat(scope): summary`, `chore(...)`, `ci(...)`).
-- One logical change per commit; include migrations and tests in the same commit when they relate.
-- Pull requests should describe motivation, list testing commands executed, and reference any tracking issues. Attach screenshots for UI/portal updates when applicable.
+- Commit messages follow the `type(scope): summary` pattern seen in history (e.g., `feat(reservations): waitlist promote flow`).
+- Keep commits scoped to a checklist step; run lint, type check, and tests before committing.
+- PRs should describe the feature, testing performed, migrations added, and any follow-up tasks; attach screenshots or curl snippets when UI/response changes apply.
 
 ## Security & Configuration Tips
-- Copy `.env.example` to `.env`; never commit secrets. Override `DATABASE_URL`/`SECRET_KEY` with secure values in non-local environments.
-- Use the synchronous `SYNC_DATABASE_URL` for Alembic migrations; runtime services rely on the async DSN (`DATABASE_URL`).
+- Store secrets in `.env` variants; never commit real keys. Use provided Mailhog, MinIO, and Stripe test credentials for local runs.
+- Enforce role checks via `get_current_active_user` dependencies. Audit events must capture actor, action, and IP for sensitive mutations.

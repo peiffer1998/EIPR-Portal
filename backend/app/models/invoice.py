@@ -1,10 +1,12 @@
 """Invoice and invoice item models."""
+
 from __future__ import annotations
 
 import enum
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -21,6 +23,10 @@ class InvoiceStatus(str, enum.Enum):
     VOID = "void"
 
 
+if TYPE_CHECKING:
+    from app.models.reservation import Reservation
+
+
 class Invoice(TimestampMixin, Base):
     """Billing invoice linked to a reservation."""
 
@@ -29,7 +35,9 @@ class Invoice(TimestampMixin, Base):
         UniqueConstraint("reservation_id", name="uq_invoice_reservation"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, default=uuid.uuid4, unique=True
+    )
     account_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
@@ -39,10 +47,26 @@ class Invoice(TimestampMixin, Base):
     status: Mapped[InvoiceStatus] = mapped_column(
         Enum(InvoiceStatus), default=InvoiceStatus.PENDING, nullable=False
     )
-    total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"), nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
+    discount_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
+    tax_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
+    total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=Decimal("0"), nullable=False
+    )
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    reservation: Mapped["Reservation"] = relationship("Reservation", back_populates="invoice")
+    reservation: Mapped["Reservation"] = relationship(
+        "Reservation", back_populates="invoice"
+    )
     items: Mapped[list["InvoiceItem"]] = relationship(
         "InvoiceItem", back_populates="invoice", cascade="all, delete-orphan"
     )
@@ -53,7 +77,9 @@ class InvoiceItem(TimestampMixin, Base):
 
     __tablename__ = "invoice_items"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4, unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, default=uuid.uuid4, unique=True
+    )
     invoice_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False
     )

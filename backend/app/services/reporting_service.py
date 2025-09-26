@@ -6,7 +6,7 @@ import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Mapping, Sequence, cast
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,24 +48,10 @@ async def occupancy_report(
                 start_date=start_date,
                 end_date=end_date,
             )
-            days: Sequence[Mapping[str, Any]] = cast(
-                Sequence[Mapping[str, Any]], availability
-            )
-            for day in days:
-                capacity_raw = day.get("capacity")
-                capacity: int | None = None
-                if isinstance(capacity_raw, (int, float, Decimal)):
-                    capacity = int(capacity_raw)
-
-                booked_raw = day.get("booked", 0)
-                booked: int = 0
-                if isinstance(booked_raw, (int, float, Decimal)):
-                    booked = int(booked_raw)
-
-                available_raw = day.get("available")
-                available: int | None = None
-                if isinstance(available_raw, (int, float, Decimal)):
-                    available = int(available_raw)
+            for day in availability:
+                capacity = day.capacity if day.capacity is not None else None
+                booked = int(day.booked)
+                available = day.available if day.available is not None else None
 
                 occupancy_rate: float | None = None
                 if capacity is not None and capacity > 0:
@@ -76,7 +62,7 @@ async def occupancy_report(
                         "location_id": location.id,
                         "location_name": location.name,
                         "reservation_type": res_type,
-                        "date": day.get("date"),
+                        "date": day.date,
                         "capacity": capacity,
                         "booked": booked,
                         "available": available,
