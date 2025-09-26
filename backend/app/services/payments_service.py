@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.integrations import StripeClient
+from app.models.comms import NotificationType
 from app.models import (
     DepositStatus,
     Invoice,
@@ -19,8 +20,10 @@ from app.models import (
     PaymentTransactionStatus,
     Pet,
     Reservation,
+    User,
+    UserRole,
 )
-from app.services import invoice_service
+from app.services import invoice_service, notifications_service
 
 _STATUS_MAP: Mapping[str, PaymentTransactionStatus] = {
     "requires_payment_method": PaymentTransactionStatus.REQUIRES_PAYMENT_METHOD,
@@ -135,6 +138,32 @@ async def create_or_update_payment_for_invoice(
     return intent.client_secret, transaction.id
 
 
+async def _notify_payment_success(
+    session: AsyncSession, account_id: UUID, reservation: Reservation | None
+) -> None:
+    if reservation is None:
+        return
+    stmt = select(User).where(
+        User.account_id == account_id, User.role != UserRole.PET_PARENT
+    )
+    result = await session.execute(stmt)
+    staff = result.scalars().all()
+    if not staff:
+        return
+    title = "Payment received"
+    pet_name = reservation.pet.name if reservation.pet else "a reservation"
+    body = f"Invoice paid for {pet_name}"
+    for user in staff:
+        await notifications_service.notify(
+            session,
+            account_id=account_id,
+            user_id=user.id,
+            type=NotificationType.PAYMENT,
+            title=title,
+            body=body,
+        )
+
+
 async def mark_invoice_paid_on_success(
     session: AsyncSession,
     *,
@@ -161,6 +190,13 @@ async def mark_invoice_paid_on_success(
 
     await invoice_service.invoice_paid(
         session, invoice_id=invoice_id, account_id=transaction.account_id
+    )
+    await _notify_payment_success(
+        session,
+        account_id=transaction.account_id,
+        reservation=(
+            invoice.reservation if invoice.reservation is not None else reservation
+        ),
     )
     await session.refresh(transaction)
 
