@@ -80,3 +80,16 @@ class ImmunizationRecordRead(BaseModel):
     document: DocumentRead | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ImmunizationRecordStatus(BaseModel):
+    """Rendered status view for an immunization record."""
+
+    record: ImmunizationRecordRead
+    is_pending: bool
+    is_current: bool
+    is_expiring: bool
+    is_expired: bool
+    is_required: bool
+
+    model_config = ConfigDict(from_attributes=True)

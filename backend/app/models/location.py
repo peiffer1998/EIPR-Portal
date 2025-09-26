@@ -1,13 +1,22 @@
 """Physical location for an account."""
+
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
+
+
+if TYPE_CHECKING:  # pragma: no cover - typing only imports
+    from app.models.account import Account
+    from app.models.location_capacity import LocationCapacityRule
+    from app.models.pet import Pet
+    from app.models.reservation import Reservation
 
 
 class Location(TimestampMixin, Base):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from pathlib import Path
 from typing import Annotated, Any, Sequence, cast
 from decimal import Decimal
 
@@ -11,9 +12,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
+from app.core.config import get_settings
 from app.models.reservation import ReservationType
 from app.models.user import User, UserRole
-from app.schemas.reporting import OccupancyEntry, RevenueEntry, RevenueReport
+from app.reports import qbo_exporter
+from app.schemas.reporting import (
+    OccupancyEntry,
+    RevenueEntry,
+    RevenueReport,
+    SalesReceiptExportResponse,
+)
 from app.services import reporting_service
 
 router = APIRouter(prefix="/reports")
@@ -80,3 +88,28 @@ async def revenue_report(
     entries = [RevenueEntry.model_validate(entry) for entry in entries_raw]
     grand_total = cast(Decimal, report_data["grand_total"])
     return RevenueReport(entries=entries, grand_total=grand_total)
+
+
+@router.get(
+    "/exports/sales-receipt",
+    response_model=SalesReceiptExportResponse,
+    summary="Export sales receipts to CSV",
+)
+async def export_sales_receipt(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    target_date: date = Query(..., alias="date"),
+) -> SalesReceiptExportResponse:
+    _assert_staff(current_user)
+    settings = get_settings()
+    export_root = Path(settings.qbo_export_dir or "exports")
+    export_path, count = await qbo_exporter.export_sales_receipts(
+        session,
+        account_id=current_user.account_id,
+        target_date=target_date,
+        export_dir=export_root,
+    )
+    return SalesReceiptExportResponse(
+        export_path=str(export_path),
+        invoices_exported=count,
+    )

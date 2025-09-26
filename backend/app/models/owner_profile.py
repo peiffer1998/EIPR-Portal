@@ -13,6 +13,7 @@ from app.models.mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models import OwnerIcon, Pet, User
+    from app.models.deposit import Deposit
 
 
 class OwnerProfile(TimestampMixin, Base):
@@ -35,4 +36,7 @@ class OwnerProfile(TimestampMixin, Base):
     )
     icon_assignments: Mapped[list["OwnerIcon"]] = relationship(
         "OwnerIcon", back_populates="owner", cascade="all, delete-orphan"
+    )
+    deposits: Mapped[list["Deposit"]] = relationship(
+        "Deposit", back_populates="owner", cascade="all, delete-orphan"
     )

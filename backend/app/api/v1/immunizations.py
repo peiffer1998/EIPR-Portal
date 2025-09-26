@@ -1,50 +1,80 @@
-"""API endpoints for managing immunizations."""
+"""Health track immunization API."""
 
 from __future__ import annotations
 
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api import deps
-from app.models.user import User, UserRole
+from app.models import OwnerProfile, Pet, User, UserRole
 from app.schemas import (
     ImmunizationRecordCreate,
-    ImmunizationRecordRead,
-    ImmunizationRecordUpdate,
+    ImmunizationRecordStatus,
     ImmunizationTypeCreate,
     ImmunizationTypeRead,
-    ImmunizationTypeUpdate,
 )
-from app.models.immunization import ImmunizationStatus
 from app.services import immunization_service
 
 router = APIRouter()
 
 
-def _assert_staff(user: User) -> None:
+def _require_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Staff permissions required",
         )
 
 
-@router.get(
-    "/types",
-    response_model=list[ImmunizationTypeRead],
-    summary="List immunization types",
-)
-async def list_types(
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> list[ImmunizationTypeRead]:
-    _assert_staff(current_user)
-    items = await immunization_service.list_immunization_types(
-        session, account_id=current_user.account_id
+async def _load_pet(
+    session: AsyncSession,
+    *,
+    pet_id: uuid.UUID,
+    account_id: uuid.UUID,
+) -> Pet:
+    stmt = (
+        select(Pet)
+        .options(selectinload(Pet.owner).selectinload(OwnerProfile.user))
+        .where(Pet.id == pet_id)
     )
-    return [ImmunizationTypeRead.model_validate(item) for item in items]
+    result = await session.execute(stmt)
+    pet = result.scalar_one_or_none()
+    if (
+        pet is None
+        or pet.owner is None
+        or pet.owner.user is None
+        or pet.owner.user.account_id != account_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found"
+        )
+    return pet
+
+
+async def _load_owner(
+    session: AsyncSession,
+    *,
+    owner_id: uuid.UUID,
+    account_id: uuid.UUID,
+) -> OwnerProfile:
+    stmt = (
+        select(OwnerProfile)
+        .options(selectinload(OwnerProfile.user))
+        .where(OwnerProfile.id == owner_id)
+    )
+    result = await session.execute(stmt)
+    owner = result.scalar_one_or_none()
+    if owner is None or owner.user is None or owner.user.account_id != account_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Owner not found",
+        )
+    return owner
 
 
 @router.post(
@@ -58,188 +88,110 @@ async def create_type(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
 ) -> ImmunizationTypeRead:
-    _assert_staff(current_user)
-    record = await immunization_service.create_immunization_type(
+    _require_staff(current_user)
+    created = await immunization_service.create_immunization_type(
         session,
         account_id=current_user.account_id,
         payload=payload,
     )
-    return ImmunizationTypeRead.model_validate(record)
-
-
-@router.patch(
-    "/types/{type_id}",
-    response_model=ImmunizationTypeRead,
-    summary="Update immunization type",
-)
-async def update_type(
-    type_id: uuid.UUID,
-    payload: ImmunizationTypeUpdate,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> ImmunizationTypeRead:
-    _assert_staff(current_user)
-    immunization_type = await immunization_service.get_immunization_type(
-        session, account_id=current_user.account_id, type_id=type_id
-    )
-    if immunization_type is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Immunization type not found"
-        )
-    updated = await immunization_service.update_immunization_type(
-        session,
-        immunization_type=immunization_type,
-        payload=payload,
-    )
-    return ImmunizationTypeRead.model_validate(updated)
-
-
-@router.delete(
-    "/types/{type_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete immunization type",
-)
-async def delete_type(
-    type_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> None:
-    _assert_staff(current_user)
-    immunization_type = await immunization_service.get_immunization_type(
-        session, account_id=current_user.account_id, type_id=type_id
-    )
-    if immunization_type is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Immunization type not found"
-        )
-    await immunization_service.delete_immunization_type(
-        session, immunization_type=immunization_type
-    )
-    return None
+    return ImmunizationTypeRead.model_validate(created)
 
 
 @router.get(
-    "/records",
-    response_model=list[ImmunizationRecordRead],
-    summary="List immunization records",
+    "/types",
+    response_model=list[ImmunizationTypeRead],
+    summary="List immunization types",
 )
-async def list_records(
+async def list_types(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-    pet_id: uuid.UUID | None = Query(default=None),
-    status_filter: ImmunizationStatus | None = Query(default=None, alias="status"),
-) -> list[ImmunizationRecordRead]:
-    _assert_staff(current_user)
-    records = await immunization_service.list_immunization_records(
-        session,
-        account_id=current_user.account_id,
-        pet_id=pet_id,
-        status=status_filter,
+) -> list[ImmunizationTypeRead]:
+    _require_staff(current_user)
+    types = await immunization_service.list_immunization_types(
+        session, account_id=current_user.account_id
     )
-    return [ImmunizationRecordRead.model_validate(record) for record in records]
+    return [ImmunizationTypeRead.model_validate(item) for item in types]
 
 
 @router.post(
-    "/records",
-    response_model=ImmunizationRecordRead,
+    "/pets/{pet_id}/immunizations",
+    response_model=ImmunizationRecordStatus,
     status_code=status.HTTP_201_CREATED,
-    summary="Create immunization record",
+    summary="Create immunization record for pet",
 )
-async def create_record(
+async def create_pet_immunization(
     payload: ImmunizationRecordCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> ImmunizationRecordRead:
-    _assert_staff(current_user)
-    record = await immunization_service.create_immunization_record(
+    pet_id: Annotated[uuid.UUID, Path()],
+) -> ImmunizationRecordStatus:
+    _require_staff(current_user)
+    await _load_pet(session, pet_id=pet_id, account_id=current_user.account_id)
+    record = await immunization_service.create_record_for_pet(
         session,
         account_id=current_user.account_id,
+        pet_id=pet_id,
         payload=payload,
-        uploaded_by_user_id=current_user.id,
+        created_by=current_user,
     )
-    hydrated = await immunization_service.get_immunization_record(
-        session, account_id=current_user.account_id, record_id=record.id
-    )
-    return ImmunizationRecordRead.model_validate(hydrated or record)
-
-
-@router.patch(
-    "/records/{record_id}",
-    response_model=ImmunizationRecordRead,
-    summary="Update immunization record",
-)
-async def update_record(
-    record_id: uuid.UUID,
-    payload: ImmunizationRecordUpdate,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> ImmunizationRecordRead:
-    _assert_staff(current_user)
-    record = await immunization_service.get_immunization_record(
-        session, account_id=current_user.account_id, record_id=record_id
-    )
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Immunization record not found",
-        )
-    updated = await immunization_service.update_immunization_record(
-        session,
-        record=record,
-        payload=payload,
-        account_id=current_user.account_id,
-        uploaded_by_user_id=current_user.id,
-    )
-    hydrated = await immunization_service.get_immunization_record(
-        session, account_id=current_user.account_id, record_id=updated.id
-    )
-    return ImmunizationRecordRead.model_validate(hydrated or updated)
-
-
-@router.delete(
-    "/records/{record_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete immunization record",
-)
-async def delete_record(
-    record_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> None:
-    _assert_staff(current_user)
-    record = await immunization_service.get_immunization_record(
-        session, account_id=current_user.account_id, record_id=record_id
-    )
-    if record is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Immunization record not found",
-        )
-    await immunization_service.delete_immunization_record(session, record=record)
-    return None
-
-
-@router.post(
-    "/evaluate",
-    response_model=list[ImmunizationRecordRead],
-    summary="Evaluate immunization statuses",
-)
-async def evaluate_immunizations(
-    background_tasks: BackgroundTasks,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> list[ImmunizationRecordRead]:
-    _assert_staff(current_user)
-    updated = await immunization_service.evaluate_immunizations(
+    statuses = await immunization_service.status_for_pet(
         session,
         account_id=current_user.account_id,
-        background_tasks=background_tasks,
+        pet_id=pet_id,
     )
-    hydrated = [
-        await immunization_service.get_immunization_record(
-            session, account_id=current_user.account_id, record_id=record.id
-        )
-        or record
-        for record in updated
-    ]
-    return [ImmunizationRecordRead.model_validate(record) for record in hydrated]
+    for status_entry in statuses:
+        if status_entry.record.id == record.id:
+            return status_entry
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@router.get(
+    "/pets/{pet_id}/immunizations",
+    response_model=list[ImmunizationRecordStatus],
+    summary="List immunization statuses for pet",
+)
+async def list_pet_immunizations(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    pet_id: Annotated[uuid.UUID, Path()],
+) -> list[ImmunizationRecordStatus]:
+    pet = await _load_pet(session, pet_id=pet_id, account_id=current_user.account_id)
+    if current_user.role == UserRole.PET_PARENT:
+        owner_profile = await deps.get_current_owner_profile(session, current_user)
+        if owner_profile is None or owner_profile.id != pet.owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found"
+            )
+
+    return await immunization_service.status_for_pet(
+        session,
+        account_id=current_user.account_id,
+        pet_id=pet_id,
+    )
+
+
+@router.get(
+    "/owners/{owner_id}/immunizations",
+    response_model=list[ImmunizationRecordStatus],
+    summary="List immunization statuses for owner",
+)
+async def list_owner_immunizations(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    owner_id: Annotated[uuid.UUID, Path()],
+) -> list[ImmunizationRecordStatus]:
+    owner = await _load_owner(
+        session, owner_id=owner_id, account_id=current_user.account_id
+    )
+    if current_user.role == UserRole.PET_PARENT:
+        owner_profile = await deps.get_current_owner_profile(session, current_user)
+        if owner_profile is None or owner_profile.id != owner.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+            )
+
+    return await immunization_service.status_for_owner(
+        session,
+        account_id=current_user.account_id,
+        owner_id=owner_id,
+    )
