@@ -112,7 +112,11 @@ class EmailOutbox(TimestampMixin, Base):
     subject: Mapped[str] = mapped_column(Text, nullable=False)
     html: Mapped[str] = mapped_column(Text, nullable=False)
     state: Mapped[EmailState] = mapped_column(
-        Enum(EmailState), default=EmailState.QUEUED, nullable=False
+        Enum(
+            EmailState, values_callable=lambda enum: [member.value for member in enum]
+        ),
+        default=EmailState.QUEUED,
+        nullable=False,
     )
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     error: Mapped[str | None] = mapped_column(Text)
@@ -163,9 +167,17 @@ class SMSMessage(Base):
     conversation_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("sms_conversations.id", ondelete="CASCADE"), nullable=False
     )
-    direction: Mapped[SMSDirection] = mapped_column(Enum(SMSDirection), nullable=False)
+    direction: Mapped[SMSDirection] = mapped_column(
+        Enum(
+            SMSDirection, values_callable=lambda enum: [member.value for member in enum]
+        ),
+        nullable=False,
+    )
     body: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[SMSStatus] = mapped_column(Enum(SMSStatus), nullable=False)
+    status: Mapped[SMSStatus] = mapped_column(
+        Enum(SMSStatus, values_callable=lambda enum: [member.value for member in enum]),
+        nullable=False,
+    )
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
@@ -193,7 +205,11 @@ class Campaign(TimestampMixin, Base):
         ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
     channel: Mapped[CampaignChannel] = mapped_column(
-        Enum(CampaignChannel), nullable=False
+        Enum(
+            CampaignChannel,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     template_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -201,7 +217,12 @@ class Campaign(TimestampMixin, Base):
     )
     segment: Mapped[dict] = mapped_column(JSON, nullable=False)
     state: Mapped[CampaignState] = mapped_column(
-        Enum(CampaignState), default=CampaignState.DRAFT, nullable=False
+        Enum(
+            CampaignState,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        default=CampaignState.DRAFT,
+        nullable=False,
     )
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -235,10 +256,19 @@ class CampaignSend(TimestampMixin, Base):
         ForeignKey("owner_profiles.id", ondelete="CASCADE"), nullable=False
     )
     channel: Mapped[CampaignChannel] = mapped_column(
-        Enum(CampaignChannel), nullable=False
+        Enum(
+            CampaignChannel,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
     )
     status: Mapped[CampaignSendStatus] = mapped_column(
-        Enum(CampaignSendStatus), default=CampaignSendStatus.QUEUED, nullable=False
+        Enum(
+            CampaignSendStatus,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        default=CampaignSendStatus.QUEUED,
+        nullable=False,
     )
     error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -265,7 +295,11 @@ class Notification(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType), nullable=False
+        Enum(
+            NotificationType,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        nullable=False,
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
