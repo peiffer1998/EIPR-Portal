@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP
@@ -16,6 +17,8 @@ from app.models.grooming import (
     GroomingAppointmentStatus,
     Specialist,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _to_money(value: Decimal | float | str) -> Decimal:
@@ -73,7 +76,11 @@ async def build_from_completed_appointments(
             specialist_location_id = location_row.scalar_one_or_none()
 
         if specialist_location_id is None:
-            # Specialist was removed or misconfigured; skip until data is corrected.
+            logger.warning(
+                "Skipping commission build for appointment %s; specialist %s missing location",
+                appointment.id,
+                appointment.specialist_id,
+            )
             continue
 
         payout = CommissionPayout(

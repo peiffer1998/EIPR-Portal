@@ -84,10 +84,11 @@ async def punch_out(
     )
     if punch is None:
         raise ValueError("No open punch to close")
+    rounded_in = _coerce_utc(punch.rounded_in_at)
     rounded_out = _round(now)
-    if rounded_out < punch.rounded_in_at:
-        rounded_out = punch.rounded_in_at
-    minutes = int((rounded_out - punch.rounded_in_at).total_seconds() // 60)
+    if rounded_out < rounded_in:
+        rounded_out = rounded_in
+    minutes = int((rounded_out - rounded_in).total_seconds() // 60)
     await session.execute(
         update(TimeClockPunch)
         .where(TimeClockPunch.id == punch.id)
