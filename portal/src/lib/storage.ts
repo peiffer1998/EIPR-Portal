@@ -27,7 +27,7 @@ export const readOwner = (): StoredOwnerSummary | null => {
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredOwnerSummary;
-  } catch (_error) {
+  } catch {
     localStorage.removeItem(OWNER_STORAGE_KEY);
     return null;
   }

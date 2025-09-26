@@ -5,14 +5,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { finalizeDocument, presignDocument, uploadDocumentBytes } from '../lib/portal';
 import { usePortalMe } from '../lib/usePortalMe';
 import { PORTAL_ME_QUERY_KEY } from '../lib/usePortalMe';
-import { useAuth } from '../state/AuthContext';
+import { useAuth } from '../state/useAuth';
 
 const Uploads = () => {
   const queryClient = useQueryClient();
   const { token, owner } = useAuth();
   const { data, isLoading } = usePortalMe();
-  const documents = data?.documents ?? [];
-  const pets = data?.pets ?? [];
+  const documents = useMemo(() => data?.documents ?? [], [data]);
+  const pets = useMemo(() => data?.pets ?? [], [data]);
   const [target, setTarget] = useState<string>('owner');
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');

@@ -16,9 +16,9 @@ const reservationTypes = [
 const Reservations = () => {
   const queryClient = useQueryClient();
   const { data, isLoading } = usePortalMe();
-  const pets = data?.pets ?? [];
-  const upcoming = data?.upcoming_reservations ?? [];
-  const past = data?.past_reservations ?? [];
+  const pets = useMemo(() => data?.pets ?? [], [data]);
+  const upcoming = useMemo(() => data?.upcoming_reservations ?? [], [data]);
+  const past = useMemo(() => data?.past_reservations ?? [], [data]);
 
   const [form, setForm] = useState({
     petId: pets[0]?.id ?? '',

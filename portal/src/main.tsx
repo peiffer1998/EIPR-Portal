@@ -1,5 +1,4 @@
 import { StrictMode } from 'react';
-import type { ReactElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -7,7 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
 import { queryClient } from './lib/query';
-import { AuthProvider, useAuth } from './state/AuthContext';
+import { AuthProvider } from './state/AuthContext';
 import LoginRegister from './routes/LoginRegister';
 import Dashboard from './routes/Dashboard';
 import Pets from './routes/Pets';
@@ -20,14 +19,7 @@ import Store from './routes/Store';
 import StorePackages from './routes/StorePackages';
 import StoreGiftCerts from './routes/StoreGiftCerts';
 import StoreBalances from './routes/StoreBalances';
-
-const ProtectedRoute = ({ children }: { children: ReactElement }) => {
-  const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  return children;
-};
+import ProtectedRoute from './components/ProtectedRoute';
 
 const root = document.getElementById('root');
 

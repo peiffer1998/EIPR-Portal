@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 import { usePortalMe } from '../lib/usePortalMe';
-import { useAuth } from '../state/AuthContext';
+import { useAuth } from '../state/useAuth';
 
 const Dashboard = () => {
   const { data, isLoading } = usePortalMe();

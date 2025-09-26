@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { login, registerOwner } from '../lib/auth';
 import { fetchPortalMe } from '../lib/portal';
-import { useAuth } from '../state/AuthContext';
+import { useAuth } from '../state/useAuth';
 import { PORTAL_ME_QUERY_KEY } from '../lib/usePortalMe';
 
 const reservationAccountSlug = import.meta.env.VITE_PORTAL_ACCOUNT_SLUG;
