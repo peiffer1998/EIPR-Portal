@@ -14,9 +14,11 @@ from app.schemas.document import DocumentCreate, DocumentRead
 class ImmunizationTypeBase(BaseModel):
     name: str
     description: str | None = Field(default=None, max_length=512)
-    validity_days: int | None = Field(default=None, ge=0)
+    validity_days: int | None = Field(default=None, ge=0, alias="default_valid_days")
     reminder_days_before: int = Field(default=30, ge=0)
-    is_required: bool = True
+    is_required: bool = Field(default=True, alias="required")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ImmunizationTypeCreate(ImmunizationTypeBase):
@@ -28,7 +30,9 @@ class ImmunizationTypeUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=512)
     validity_days: int | None = Field(default=None, ge=0)
     reminder_days_before: int | None = Field(default=None, ge=0)
-    is_required: bool | None = None
+    is_required: bool | None = Field(default=None, alias="required")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ImmunizationTypeRead(ImmunizationTypeBase):
@@ -41,13 +45,16 @@ class ImmunizationTypeRead(ImmunizationTypeBase):
 
 
 class ImmunizationRecordBase(BaseModel):
-    pet_id: uuid.UUID
-    immunization_type_id: uuid.UUID
-    received_on: date
+    pet_id: uuid.UUID | None = None
+    type_id: uuid.UUID = Field(alias="immunization_type_id")
+    issued_on: date
     expires_on: date | None = None
+    verified: bool = False
     notes: str | None = Field(default=None, max_length=512)
     document_id: uuid.UUID | None = None
     document: DocumentCreate | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class ImmunizationRecordCreate(ImmunizationRecordBase):
@@ -55,31 +62,32 @@ class ImmunizationRecordCreate(ImmunizationRecordBase):
 
 
 class ImmunizationRecordUpdate(BaseModel):
-    received_on: date | None = None
+    issued_on: date | None = None
     expires_on: date | None = None
     status: ImmunizationStatus | None = None
     notes: str | None = Field(default=None, max_length=512)
     document_id: uuid.UUID | None = None
     document: DocumentCreate | None = None
+    verified: bool | None = None
 
 
 class ImmunizationRecordRead(BaseModel):
     id: uuid.UUID
     account_id: uuid.UUID
     pet_id: uuid.UUID
-    immunization_type_id: uuid.UUID
+    immunization_type_id: uuid.UUID = Field(alias="type_id")
     status: ImmunizationStatus
-    received_on: date
+    issued_on: date
     expires_on: date | None
     notes: str | None
-    last_evaluated_at: datetime | None
-    reminder_sent_at: datetime | None
+    last_evaluated_at: datetime | None = None
+    reminder_sent_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
     immunization_type: ImmunizationTypeRead | None = None
     document: DocumentRead | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ImmunizationRecordStatus(BaseModel):

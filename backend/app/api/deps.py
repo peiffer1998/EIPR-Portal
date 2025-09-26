@@ -19,7 +19,13 @@ from app.core.security import decode_access_token
 from app.db.session import get_session
 from app.models.user import User, UserRole, UserStatus
 from app.models.owner_profile import OwnerProfile
-from app.integrations import StripeClient, StripeClientError
+from app.integrations import (
+    S3Client,
+    S3ClientError,
+    StripeClient,
+    StripeClientError,
+    build_s3_client,
+)
 
 settings = get_settings()
 
@@ -106,3 +112,20 @@ def get_stripe_client() -> StripeClient:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
+
+
+@lru_cache
+def _build_s3_client() -> S3Client:
+    try:
+        return build_s3_client()
+    except S3ClientError as exc:  # pragma: no cover - configuration error
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+def get_s3_client() -> S3Client:
+    """Provide a singleton S3 client instance."""
+
+    return _build_s3_client()

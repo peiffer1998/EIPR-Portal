@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+os.environ.setdefault("S3_BUCKET", "test-bucket")
+os.environ.setdefault("S3_ENDPOINT_URL", "http://local.test")
 
 from app.core.config import get_settings
 from app.core.security import get_password_hash

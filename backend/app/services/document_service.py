@@ -1,4 +1,5 @@
 """Services for document metadata."""
+
 from __future__ import annotations
 
 import uuid
@@ -20,7 +21,9 @@ async def list_documents(
     owner_id: uuid.UUID | None = None,
     pet_id: uuid.UUID | None = None,
 ) -> list[Document]:
-    stmt: Select[tuple[Document]] = select(Document).where(Document.account_id == account_id)
+    stmt: Select[tuple[Document]] = select(Document).where(
+        Document.account_id == account_id
+    )
     if owner_id is not None:
         stmt = stmt.where(Document.owner_id == owner_id)
     if pet_id is not None:
@@ -36,7 +39,9 @@ async def get_document(
     account_id: uuid.UUID,
     document_id: uuid.UUID,
 ) -> Document | None:
-    stmt = select(Document).where(Document.id == document_id, Document.account_id == account_id)
+    stmt = select(Document).where(
+        Document.id == document_id, Document.account_id == account_id
+    )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -72,8 +77,16 @@ async def create_document(
         uploaded_by_user_id=uploaded_by_user_id,
         file_name=payload.file_name,
         content_type=payload.content_type,
+        object_key=payload.object_key,
         url=payload.url,
         notes=payload.notes,
+        sha256=payload.sha256,
+        object_key_web=payload.object_key_web,
+        bytes_web=payload.bytes_web,
+        width=payload.width,
+        height=payload.height,
+        content_type_web=payload.content_type_web
+        or ("image/webp" if payload.object_key_web else None),
     )
     session.add(document)
     await session.commit()

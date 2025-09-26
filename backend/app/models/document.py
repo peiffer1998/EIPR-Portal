@@ -1,9 +1,10 @@
 """Document metadata for uploaded files."""
+
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import BigInteger, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -30,8 +31,17 @@ class Document(TimestampMixin, Base):
     )
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     content_type: Mapped[str | None] = mapped_column(String(128))
+    object_key: Mapped[str | None] = mapped_column(String(1024))
     url: Mapped[str | None] = mapped_column(String(1024))
     notes: Mapped[str | None] = mapped_column(String(1024))
+    sha256: Mapped[str | None] = mapped_column(String(128), index=True)
+    object_key_web: Mapped[str | None] = mapped_column(String(1024))
+    bytes_web: Mapped[int | None] = mapped_column(BigInteger())
+    width: Mapped[int | None] = mapped_column(Integer())
+    height: Mapped[int | None] = mapped_column(Integer())
+    content_type_web: Mapped[str | None] = mapped_column(
+        String(128), default="image/webp"
+    )
 
     owner = relationship("OwnerProfile")
     pet = relationship("Pet")

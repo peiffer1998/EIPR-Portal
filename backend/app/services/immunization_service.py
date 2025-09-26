@@ -90,8 +90,8 @@ async def create_immunization_type(
     immunization_type = ImmunizationType(
         account_id=account_id,
         name=payload.name,
-        required=payload.required,
-        default_valid_days=payload.default_valid_days,
+        required=payload.is_required,
+        default_valid_days=payload.validity_days,
     )
     session.add(immunization_type)
     await session.commit()

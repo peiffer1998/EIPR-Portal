@@ -28,6 +28,7 @@ from . import (
     reservations,
     run_cards,
     service_catalog,
+    storage,
     users,
     waitlist,
 )
@@ -61,6 +62,7 @@ router.include_router(packages.router, tags=["packages"])
 router.include_router(waitlist.router, tags=["waitlist"])
 router.include_router(location_hours.router, tags=["location-hours"])
 router.include_router(documents.router, tags=["documents"])
+router.include_router(storage.router, tags=["storage"])
 # BEGIN OPS_P5 ROUTES
 router.include_router(feeding_board.router, prefix="/feeding", tags=["feeding"])
 router.include_router(

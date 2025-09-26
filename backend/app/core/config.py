@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     s3_access_key_id: str | None = Field(default=None, alias="S3_ACCESS_KEY_ID")
     s3_secret_access_key: str | None = Field(default=None, alias="S3_SECRET_ACCESS_KEY")
 
+    image_max_width: int = Field(1600, alias="IMAGE_MAX_WIDTH")
+    image_webp_quality: int = Field(82, alias="IMAGE_WEBP_QUALITY")
+    image_keep_original_days: int = Field(90, alias="IMAGE_KEEP_ORIGINAL_DAYS")
+    image_dedup: bool = Field(True, alias="IMAGE_DEDUP")
+    s3_cache_seconds: int = Field(31536000, alias="S3_CACHE_SECONDS")
+
     qbo_export_dir: str | None = Field(default=None, alias="QBO_EXPORT_DIR")
 
     kisi_api_key: str | None = Field(default=None, alias="KISI_API_KEY")

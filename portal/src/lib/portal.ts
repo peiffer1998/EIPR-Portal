@@ -51,6 +51,15 @@ export interface ApiInvoice {
   items?: ApiInvoiceItem[];
 }
 
+export interface ApiDocument {
+  id: string;
+  file_name: string;
+  url: string | null;
+  url_web?: string | null;
+  content_type: string | null;
+  created_at: string;
+}
+
 export interface PortalMeApiResponse {
   owner: ApiOwnerSummary;
   pets: ApiPet[];
@@ -58,6 +67,7 @@ export interface PortalMeApiResponse {
   past_reservations: ApiReservation[];
   unpaid_invoices: ApiInvoice[];
   recent_paid_invoices: ApiInvoice[];
+  documents?: ApiDocument[];
 }
 
 export interface PortalInvoicesResponse {

@@ -24,7 +24,7 @@ from app.schemas.capacity import (
     LocationCapacityRuleUpdate,
 )
 from app.schemas.deposit import DepositActionRequest, DepositRead
-from app.schemas.document import DocumentCreate, DocumentRead
+from app.schemas.document import DocumentCreate, DocumentFinalizeRequest, DocumentRead
 from app.schemas.feeding import (
     FeedingScheduleCreate,
     FeedingScheduleRead,
@@ -174,6 +174,7 @@ __all__ = [
     "LocationClosureCreate",
     "LocationClosureRead",
     "DocumentCreate",
+    "DocumentFinalizeRequest",
     "DocumentRead",
     "ImmunizationTypeCreate",
     "ImmunizationTypeRead",
