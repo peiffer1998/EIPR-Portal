@@ -7,6 +7,7 @@ from . import (
     agreements,
     auth,
     capacity,
+    comms,
     deposits,
     documents,
     feeding,
@@ -44,6 +45,7 @@ from . import (
 router = APIRouter()
 router.include_router(health.router, prefix="/health", tags=["health"])
 router.include_router(auth.router, prefix="/auth", tags=["auth"])
+router.include_router(comms.router)
 router.include_router(users.router, prefix="/users", tags=["users"])
 router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 router.include_router(locations.router, prefix="/locations", tags=["locations"])
