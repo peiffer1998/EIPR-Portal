@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from app.models.grooming import GroomingAppointment
     from app.models.payment import PaymentTransaction
     from app.models.reservation import Reservation
+    from app.models.store import CreditApplication, PackageCredit, StoreCreditLedger
 
 
 class Invoice(TimestampMixin, Base):
@@ -58,6 +59,9 @@ class Invoice(TimestampMixin, Base):
     tax_total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0"), nullable=False
     )
+    credits_total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
     total: Mapped[Decimal] = mapped_column(
         Numeric(12, 2), default=Decimal("0"), nullable=False
     )
@@ -77,6 +81,15 @@ class Invoice(TimestampMixin, Base):
     )
     grooming_appointments: Mapped[list["GroomingAppointment"]] = relationship(
         "GroomingAppointment", back_populates="invoice"
+    )
+    package_credits: Mapped[list["PackageCredit"]] = relationship(
+        "PackageCredit", back_populates="invoice"
+    )
+    store_credit_entries: Mapped[list["StoreCreditLedger"]] = relationship(
+        "StoreCreditLedger", back_populates="invoice"
+    )
+    credit_applications: Mapped[list["CreditApplication"]] = relationship(
+        "CreditApplication", back_populates="invoice", cascade="all, delete-orphan"
     )
 
 

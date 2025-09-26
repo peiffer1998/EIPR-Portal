@@ -47,6 +47,17 @@ from app.models.report_card import (
     ReportCardMedia,
     ReportCardStatus,
 )
+from app.models.store import (
+    CreditApplication,
+    CreditApplicationType,
+    GiftCertificate,
+    PackageApplicationType,
+    PackageCredit,
+    PackageCreditSource,
+    PackageType,
+    StoreCreditLedger,
+    StoreCreditSource,
+)
 
 __all__ = [
     "Account",
@@ -107,4 +118,13 @@ __all__ = [
     "ReportCard",
     "ReportCardMedia",
     "ReportCardStatus",
+    "PackageType",
+    "PackageApplicationType",
+    "PackageCredit",
+    "PackageCreditSource",
+    "GiftCertificate",
+    "StoreCreditLedger",
+    "StoreCreditSource",
+    "CreditApplication",
+    "CreditApplicationType",
 ]
