@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import Field
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +65,19 @@ class Settings(BaseSettings):
 
     qbo_export_dir: str | None = Field(default=None, alias="QBO_EXPORT_DIR")
 
+    cors_allow_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+        ],
+        alias="CORS_ALLOW_ORIGINS",
+    )
+    cors_allow_origin_regex: str | None = Field(
+        default=None, alias="CORS_ALLOW_ORIGIN_REGEX"
+    )
+    cors_allow_credentials: bool = Field(default=False, alias="CORS_ALLOW_CREDENTIALS")
+
     kisi_api_key: str | None = Field(default=None, alias="KISI_API_KEY")
     kisi_door_id: str | None = Field(default=None, alias="KISI_DOOR_ID")
 
@@ -77,6 +91,13 @@ class Settings(BaseSettings):
 
         if not self.jwt_secret_key:
             object.__setattr__(self, "jwt_secret_key", self.secret_key)
+
+    @field_validator("cors_allow_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
 
 @lru_cache

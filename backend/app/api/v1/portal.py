@@ -44,6 +44,7 @@ from app.services import (
     owner_service,
     reservation_service,
 )
+from app.services.bootstrap_service import ensure_default_admin
 from app.services.auth_service import authenticate_user, create_access_token_for_user
 
 router = APIRouter(prefix="/portal", tags=["portal"])
@@ -197,6 +198,13 @@ async def _resolve_account(
 
     fallback = await session.execute(candidates.limit(1))
     account = fallback.scalar_one_or_none()
+    if account is not None:
+        return account
+
+    # No accounts exist yet; ensure the bootstrap path has run and retry once.
+    await ensure_default_admin()
+    retry = await session.execute(candidates.limit(1))
+    account = retry.scalar_one_or_none()
     if account is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

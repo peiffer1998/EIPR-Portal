@@ -11,15 +11,27 @@ from app.services.bootstrap_service import ensure_default_admin
 
 settings = get_settings()
 
+default_origin_regex = settings.cors_allow_origin_regex
+if default_origin_regex is None and settings.app_env.lower() == "local":
+    # Permit common localhost/private-network origins during local development.
+    default_origin_regex = (
+        r"http://("  # noqa: E501 - regex kept readable for future tweaks
+        r"localhost|"
+        r"127\.0\.0\.1|"
+        r"10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|"
+        r"192\.168\.[0-9]{1,3}\.[0-9]{1,3}|"
+        r"172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}"
+        r")(?:\:[0-9]{2,5})?$"
+    )
+
+allow_origins = settings.cors_allow_origins or ["*"]
+
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-    ],
-    allow_credentials=False,
+    allow_origins=allow_origins,
+    allow_origin_regex=default_origin_regex,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
