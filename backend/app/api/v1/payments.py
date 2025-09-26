@@ -77,6 +77,19 @@ async def create_payment_intent(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
+    if client_secret is None:
+        invoice = await billing_service.get_invoice(
+            session,
+            account_id=current_user.account_id,
+            invoice_id=payload.invoice_id,
+        )
+        return PaymentIntentCreateResponse(
+            client_secret=None,
+            transaction_id=None,
+            invoice_status=invoice.status.value if invoice else None,
+            message="Invoice already settled; no payment required.",
+        )
+
     return PaymentIntentCreateResponse(
         client_secret=client_secret,
         transaction_id=transaction_id,

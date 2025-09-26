@@ -17,8 +17,10 @@ class PaymentIntentCreateRequest(BaseModel):
 class PaymentIntentCreateResponse(BaseModel):
     """Response payload returned when creating a payment intent."""
 
-    client_secret: str
-    transaction_id: UUID
+    client_secret: str | None = None
+    transaction_id: UUID | None = None
+    invoice_status: str | None = None
+    message: str | None = None
 
 
 class PaymentRefundRequest(BaseModel):

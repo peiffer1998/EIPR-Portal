@@ -120,6 +120,7 @@ async def test_payment_success_consumes_deposit_and_marks_invoice(
             stripe=stripe_client,
         )
         assert client_secret
+        assert transaction_id is not None
 
         transaction = await session.get(PaymentTransaction, transaction_id)
         assert transaction is not None
@@ -165,6 +166,7 @@ async def test_payment_failure_updates_transaction(reset_database, db_url: str) 
             invoice_id=invoice.id,
             stripe=stripe_client,
         )
+        assert transaction_id is not None
 
         transaction = await session.get(PaymentTransaction, transaction_id)
         assert transaction is not None
@@ -190,6 +192,7 @@ async def test_payment_refund_markers(reset_database, db_url: str) -> None:
             invoice_id=invoice.id,
             stripe=stripe_client,
         )
+        assert transaction_id is not None
 
         transaction = await session.get(PaymentTransaction, transaction_id)
         assert transaction is not None
@@ -213,3 +216,37 @@ async def test_payment_refund_markers(reset_database, db_url: str) -> None:
         refunded = await session.get(PaymentTransaction, transaction_id)
         assert refunded is not None
         assert refunded.status is PaymentTransactionStatus.REFUNDED
+
+
+async def test_zero_due_invoice_skips_intent(reset_database, db_url: str) -> None:
+    sessionmaker = get_sessionmaker(db_url)
+    async with sessionmaker() as session:
+        account, invoice, reservation = await _seed_invoice(session)
+
+        # Hold a deposit equal to the invoice total
+        await invoice_service.settle_deposit(
+            session,
+            reservation_id=reservation.id,
+            account_id=account.id,
+            action="hold",
+            amount=invoice.total or Decimal("0"),
+        )
+
+        stripe_client = StripeClient("sk_test_dummy", test_mode=True)
+
+        (
+            client_secret,
+            transaction_id,
+        ) = await payments_service.create_or_update_payment_for_invoice(
+            session,
+            account_id=account.id,
+            invoice_id=invoice.id,
+            stripe=stripe_client,
+        )
+
+        assert client_secret is None
+        assert transaction_id is None
+
+        updated_invoice = await session.get(Invoice, invoice.id)
+        assert updated_invoice is not None
+        assert updated_invoice.status is InvoiceStatus.PAID

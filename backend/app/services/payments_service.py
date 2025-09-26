@@ -69,7 +69,7 @@ async def create_or_update_payment_for_invoice(
     invoice_id: UUID,
     currency: str = "usd",
     stripe: StripeClient,
-) -> tuple[str, UUID]:
+) -> tuple[str | None, UUID | None]:
     """Create or refresh a PaymentIntent and persist a transaction."""
 
     invoice = await _get_invoice(session, account_id=account_id, invoice_id=invoice_id)
@@ -82,6 +82,18 @@ async def create_or_update_payment_for_invoice(
     amount_due = await invoice_service.amount_due(
         session, invoice_id=invoice_id, account_id=account_id
     )
+
+    if amount_due <= Decimal("0.00"):
+        # Nothing left to charge; consume deposits and mark invoice paid.
+        await invoice_service.consume_reservation_deposits(
+            session,
+            reservation_id=invoice.reservation_id,
+            account_id=account_id,
+        )
+        await invoice_service.invoice_paid(
+            session, invoice_id=invoice_id, account_id=account_id
+        )
+        return None, None
     customer_email = owner_profile.user.email
     idempotency_key = f"invoice-{invoice_id}-intent"
     intent = stripe.create_payment_intent(
