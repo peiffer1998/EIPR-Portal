@@ -54,12 +54,6 @@ async def create_payment_intent(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
             )
-    amount = invoice.total
-    if amount is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invoice has no total"
-        )
-
     (
         client_secret,
         transaction_id,
@@ -67,7 +61,6 @@ async def create_payment_intent(
         session,
         account_id=current_user.account_id,
         invoice_id=payload.invoice_id,
-        amount=Decimal(amount),
     )
 
     return PaymentIntentCreateResponse(

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Mapping
 from uuid import UUID
@@ -13,14 +12,15 @@ from sqlalchemy.orm import selectinload
 
 from app.integrations import stripe_client
 from app.models import (
+    DepositStatus,
     Invoice,
-    InvoiceStatus,
     OwnerProfile,
     PaymentTransaction,
     PaymentTransactionStatus,
     Pet,
     Reservation,
 )
+from app.services import invoice_service
 
 _STATUS_MAP: Mapping[str, PaymentTransactionStatus] = {
     "requires_payment_method": PaymentTransactionStatus.REQUIRES_PAYMENT_METHOD,
@@ -51,7 +51,8 @@ async def _get_invoice(
             selectinload(Invoice.reservation)
             .selectinload(Reservation.pet)
             .selectinload(Pet.owner)
-            .selectinload(OwnerProfile.user)
+            .selectinload(OwnerProfile.user),
+            selectinload(Invoice.reservation).selectinload(Reservation.deposits),
         )
     )
     result = await session.execute(stmt)
@@ -66,7 +67,6 @@ async def create_or_update_payment_for_invoice(
     *,
     account_id: UUID,
     invoice_id: UUID,
-    amount: Decimal,
     currency: str = "usd",
 ) -> tuple[str, UUID]:
     """Create or refresh a PaymentIntent and persist a transaction."""
@@ -78,11 +78,14 @@ async def create_or_update_payment_for_invoice(
     if owner_profile is None or owner_profile.user is None:
         raise ValueError("Invoice is missing owner information")
 
+    amount_due = await invoice_service.amount_due(
+        session, invoice_id=invoice_id, account_id=account_id
+    )
     customer_email = owner_profile.user.email
     idempotency_key = f"invoice-{invoice_id}-intent"
     intent = stripe_client.create_payment_intent(
         invoice_id=invoice_id,
-        amount=amount,
+        amount=amount_due,
         currency=currency,
         customer_email=customer_email,
         idempotency_key=idempotency_key,
@@ -99,7 +102,7 @@ async def create_or_update_payment_for_invoice(
     existing = (await session.execute(stmt)).scalars().first()
 
     status = _to_status(intent.status)
-    normalized_amount = amount.quantize(Decimal("0.01"))
+    normalized_amount = amount_due.quantize(Decimal("0.01"))
     if existing is None:
         transaction = PaymentTransaction(
             account_id=account_id,
@@ -141,13 +144,19 @@ async def mark_invoice_paid_on_success(
     transaction.status = PaymentTransactionStatus.SUCCEEDED
     transaction.failure_reason = None
 
-    invoice = await session.get(Invoice, invoice_id)
-    if invoice is None:
-        raise ValueError("Invoice not found")
-    invoice.status = InvoiceStatus.PAID
-    invoice.paid_at = datetime.now(UTC)
+    invoice = await _get_invoice(
+        session, account_id=transaction.account_id, invoice_id=invoice_id
+    )
+    reservation = invoice.reservation
+    if reservation is not None:
+        for deposit in reservation.deposits:
+            if deposit.status is DepositStatus.HELD:
+                deposit.status = DepositStatus.CONSUMED
 
-    await session.commit()
+    await invoice_service.invoice_paid(
+        session, invoice_id=invoice_id, account_id=transaction.account_id
+    )
+    await session.refresh(transaction)
 
 
 async def apply_refund_markers(
