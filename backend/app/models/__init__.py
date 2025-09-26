@@ -27,6 +27,16 @@ from app.models.waitlist_entry import WaitlistEntry, WaitlistStatus
 from app.models.location_hours import LocationHour, LocationClosure
 from app.models.document import Document
 from app.models.user import User, UserRole, UserStatus
+from app.models.grooming import (
+    CommissionType,
+    GroomingAddon,
+    GroomingAppointment,
+    GroomingAppointmentStatus,
+    GroomingService,
+    Specialist,
+    SpecialistSchedule,
+    SpecialistTimeOff,
+)
 
 __all__ = [
     "Account",
@@ -73,4 +83,12 @@ __all__ = [
     "User",
     "UserRole",
     "UserStatus",
+    "Specialist",
+    "SpecialistSchedule",
+    "SpecialistTimeOff",
+    "GroomingService",
+    "GroomingAddon",
+    "GroomingAppointment",
+    "GroomingAppointmentStatus",
+    "CommissionType",
 ]

@@ -46,14 +46,22 @@ def to_webp(data: bytes, max_width: int, quality: int) -> tuple[bytes, int, int]
                 )
             resized = _resize_image(image, max_width)
             buffer = BytesIO()
-            save_kwargs = {
-                "format": "WEBP",
-                "quality": max(1, min(quality, 100)),
-                "method": 6,
-            }
+            quality_value = max(1, min(quality, 100))
             if resized.mode == "RGBA":
-                save_kwargs["lossless"] = False
-            resized.save(buffer, **save_kwargs)
+                resized.save(
+                    buffer,
+                    format="WEBP",
+                    quality=quality_value,
+                    method=6,
+                    lossless=False,
+                )
+            else:
+                resized.save(
+                    buffer,
+                    format="WEBP",
+                    quality=quality_value,
+                    method=6,
+                )
             output = buffer.getvalue()
             width, height = resized.size
             return output, width, height

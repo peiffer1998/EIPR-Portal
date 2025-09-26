@@ -24,6 +24,7 @@ class InvoiceStatus(str, enum.Enum):
 
 
 if TYPE_CHECKING:
+    from app.models.grooming import GroomingAppointment
     from app.models.reservation import Reservation
 
 
@@ -69,6 +70,9 @@ class Invoice(TimestampMixin, Base):
     )
     items: Mapped[list["InvoiceItem"]] = relationship(
         "InvoiceItem", back_populates="invoice", cascade="all, delete-orphan"
+    )
+    grooming_appointments: Mapped[list["GroomingAppointment"]] = relationship(
+        "GroomingAppointment", back_populates="invoice"
     )
 
 

@@ -11,6 +11,8 @@ from . import (
     documents,
     feeding,
     feeding_board,
+    grooming,
+    grooming_reports,
     health,
     icons,
     immunizations,
@@ -70,5 +72,11 @@ router.include_router(
 )
 router.include_router(run_cards.router, tags=["run-cards"])
 # END OPS_P5 ROUTES
+router.include_router(grooming.router, prefix="/grooming", tags=["grooming"])
+router.include_router(
+    grooming_reports.router,
+    prefix="/grooming/reports",
+    tags=["grooming-reports"],
+)
 
 __all__ = ["router"]
