@@ -40,3 +40,10 @@ class RevenueReport(BaseModel):
 
     entries: list[RevenueEntry]
     grand_total: Decimal
+
+
+class SalesReceiptExportResponse(BaseModel):
+    """Response for QBO sales receipt export."""
+
+    export_path: str
+    invoices_exported: int

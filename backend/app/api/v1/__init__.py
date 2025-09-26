@@ -11,6 +11,8 @@ from . import (
     documents,
     feeding,
     feeding_board,
+    grooming,
+    grooming_reports,
     health,
     icons,
     immunizations,
@@ -20,6 +22,7 @@ from . import (
     medication,
     medication_board,
     owners,
+    portal,
     packages,
     pets,
     payments,
@@ -29,6 +32,7 @@ from . import (
     reservations,
     run_cards,
     service_catalog,
+    storage,
     users,
     waitlist,
 )
@@ -41,6 +45,7 @@ router.include_router(accounts.router, prefix="/accounts", tags=["accounts"])
 router.include_router(locations.router, prefix="/locations", tags=["locations"])
 router.include_router(owners.router, prefix="/owners", tags=["owners"])
 router.include_router(pets.router, prefix="/pets", tags=["pets"])
+router.include_router(portal.router)
 router.include_router(
     reservations.router, prefix="/reservations", tags=["reservations"]
 )
@@ -63,6 +68,7 @@ router.include_router(packages.router, tags=["packages"])
 router.include_router(waitlist.router, tags=["waitlist"])
 router.include_router(location_hours.router, tags=["location-hours"])
 router.include_router(documents.router, tags=["documents"])
+router.include_router(storage.router, tags=["storage"])
 # BEGIN OPS_P5 ROUTES
 router.include_router(feeding_board.router, prefix="/feeding", tags=["feeding"])
 router.include_router(
@@ -70,5 +76,11 @@ router.include_router(
 )
 router.include_router(run_cards.router, tags=["run-cards"])
 # END OPS_P5 ROUTES
+router.include_router(grooming.router, prefix="/grooming", tags=["grooming"])
+router.include_router(
+    grooming_reports.router,
+    prefix="/grooming/reports",
+    tags=["grooming-reports"],
+)
 
 __all__ = ["router"]

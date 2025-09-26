@@ -1,4 +1,5 @@
 """Services for managing staff invitations."""
+
 from __future__ import annotations
 
 import secrets
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash, verify_password
 from app.models.staff_invitation import StaffInvitation, StaffInvitationStatus
-from app.models.user import UserRole, UserStatus
+from app.models.user import UserStatus
 from app.schemas.user import StaffInvitationCreate, UserCreate
 
 
@@ -51,7 +52,9 @@ async def create_invitation(
     """Create an invitation and return it alongside the raw token."""
     from app.services import user_service  # local import to avoid cycle
 
-    existing_user = await user_service.get_user_by_email(session, email=payload.email.lower())
+    existing_user = await user_service.get_user_by_email(
+        session, email=payload.email.lower()
+    )
     if existing_user is not None:
         raise ValueError("User with this email already exists")
 
@@ -69,7 +72,9 @@ async def create_invitation(
         raw_token = secrets.token_urlsafe(32)
         token_prefix = raw_token[:16]
         existing_token = await session.execute(
-            select(StaffInvitation.id).where(StaffInvitation.token_prefix == token_prefix)
+            select(StaffInvitation.id).where(
+                StaffInvitation.token_prefix == token_prefix
+            )
         )
         if existing_token.scalar_one_or_none() is None:
             break
@@ -126,7 +131,9 @@ async def accept_invitation(
     if not verify_password(token, invitation.token_hash):
         raise ValueError("Invalid invitation token")
 
-    existing_user = await user_service.get_user_by_email(session, email=invitation.email)
+    existing_user = await user_service.get_user_by_email(
+        session, email=invitation.email
+    )
     if existing_user is not None:
         invitation.status = StaffInvitationStatus.REVOKED
         await session.commit()

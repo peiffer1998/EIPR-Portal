@@ -45,3 +45,5 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["app"]
 include = ["*"]
+
+Pillow = ">=10.0.0"

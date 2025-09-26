@@ -27,6 +27,7 @@ from app.models import (
     UserRole,
     UserStatus,
 )
+from app.integrations import StripeClient
 from app.services import invoice_service, payments_service
 
 pytestmark = pytest.mark.asyncio
@@ -107,6 +108,8 @@ async def test_payment_success_consumes_deposit_and_marks_invoice(
             amount=Decimal("50.00"),
         )
 
+        stripe_client = StripeClient("sk_test_dummy", test_mode=True)
+
         (
             client_secret,
             transaction_id,
@@ -114,6 +117,7 @@ async def test_payment_success_consumes_deposit_and_marks_invoice(
             session,
             account_id=account.id,
             invoice_id=invoice.id,
+            stripe=stripe_client,
         )
         assert client_secret
 
@@ -153,10 +157,13 @@ async def test_payment_failure_updates_transaction(reset_database, db_url: str) 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
         account, invoice, _ = await _seed_invoice(session)
+        stripe_client = StripeClient("sk_test_dummy", test_mode=True)
+
         _, transaction_id = await payments_service.create_or_update_payment_for_invoice(
             session,
             account_id=account.id,
             invoice_id=invoice.id,
+            stripe=stripe_client,
         )
 
         transaction = await session.get(PaymentTransaction, transaction_id)
@@ -175,10 +182,13 @@ async def test_payment_refund_markers(reset_database, db_url: str) -> None:
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
         account, invoice, _ = await _seed_invoice(session)
+        stripe_client = StripeClient("sk_test_dummy", test_mode=True)
+
         _, transaction_id = await payments_service.create_or_update_payment_for_invoice(
             session,
             account_id=account.id,
             invoice_id=invoice.id,
+            stripe=stripe_client,
         )
 
         transaction = await session.get(PaymentTransaction, transaction_id)

@@ -1,0 +1,14 @@
+services:
+  api:
+    env_file: [.env.billing]
+    ports: ["8001:8000"]
+  db:
+    environment:
+      POSTGRES_DB: eipr_billing
+    ports: ["5433:5432"]
+  redis:
+    ports: ["6380:6379"]
+  mailhog:
+    ports: ["8026:8025"]
+  minio:
+    ports: ["9002:9000", "9003:9001"]

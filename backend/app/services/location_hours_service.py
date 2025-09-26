@@ -1,4 +1,5 @@
 """Manage location hours and closures."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,13 +11,14 @@ from app.models.location import Location
 from app.models.location_hours import LocationClosure, LocationHour
 from app.schemas.location_hours import (
     LocationClosureCreate,
-    LocationClosureRead,
     LocationHourCreate,
     LocationHourUpdate,
 )
 
 
-async def _ensure_location(session: AsyncSession, *, account_id: uuid.UUID, location_id: uuid.UUID) -> Location:
+async def _ensure_location(
+    session: AsyncSession, *, account_id: uuid.UUID, location_id: uuid.UUID
+) -> Location:
     location = await session.get(Location, location_id)
     if location is None or location.account_id != account_id:
         raise ValueError("Location not found")

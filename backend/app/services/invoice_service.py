@@ -188,6 +188,27 @@ async def invoice_paid(
     return invoice
 
 
+async def consume_reservation_deposits(
+    session: AsyncSession,
+    *,
+    reservation_id: UUID,
+    account_id: UUID,
+) -> None:
+    """Mark any held deposits for a reservation as consumed."""
+
+    reservation = await _load_reservation(session, reservation_id, account_id)
+    if reservation is None:
+        return
+
+    updated = False
+    for deposit in reservation.deposits:
+        if deposit.status == DepositStatus.HELD:
+            deposit.status = DepositStatus.CONSUMED
+            updated = True
+    if updated:
+        await session.commit()
+
+
 async def settle_deposit(
     session: AsyncSession,
     *,

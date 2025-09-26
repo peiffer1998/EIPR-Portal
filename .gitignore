@@ -6,6 +6,10 @@ __pycache__/
 *.so
 *.egg-info/
 
+# JavaScript / TypeScript
+node_modules/
+portal/node_modules/
+
 # Environments
 .env
 .venv/

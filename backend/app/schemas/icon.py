@@ -1,48 +1,52 @@
-"""Schemas for icon definitions and assignments."""
+"""Pydantic schemas for icon assignments."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.models.icon import IconEntity
 
 
-class IconCreate(BaseModel):
+class IconBase(BaseModel):
+    """Shared icon fields."""
+
     name: str
-    slug: str = Field(min_length=1, max_length=120)
-    symbol: str | None = Field(default=None, max_length=16)
-    color: str | None = Field(default=None, max_length=16)
+    slug: str
+    symbol: str | None = None
+    color: str | None = None
     description: str | None = None
     applies_to: IconEntity = IconEntity.PET
-    popup_text: str | None = Field(default=None, max_length=512)
+    popup_text: str | None = None
     affects_capacity: bool = False
 
 
+class IconCreate(IconBase):
+    """Payload for creating an icon."""
+
+    pass
+
+
 class IconUpdate(BaseModel):
+    """Mutable icon fields."""
+
     name: str | None = None
-    slug: str | None = Field(default=None, max_length=120)
-    symbol: str | None = Field(default=None, max_length=16)
-    color: str | None = Field(default=None, max_length=16)
+    slug: str | None = None
+    symbol: str | None = None
+    color: str | None = None
     description: str | None = None
     applies_to: IconEntity | None = None
-    popup_text: str | None = Field(default=None, max_length=512)
+    popup_text: str | None = None
     affects_capacity: bool | None = None
 
 
-class IconRead(BaseModel):
+class IconRead(IconBase):
+    """Serialized icon definition."""
+
     id: uuid.UUID
     account_id: uuid.UUID
-    name: str
-    slug: str
-    symbol: str | None
-    color: str | None
-    description: str | None
-    applies_to: IconEntity
-    popup_text: str | None
-    affects_capacity: bool
     created_at: datetime
     updated_at: datetime
 
@@ -50,14 +54,17 @@ class IconRead(BaseModel):
 
 
 class OwnerIconAssignmentCreate(BaseModel):
+    """Payload for attaching an icon to an owner."""
+
     owner_id: uuid.UUID
     icon_id: uuid.UUID
-    notes: str | None = Field(default=None, max_length=512)
+    notes: str | None = None
 
 
 class OwnerIconAssignmentRead(BaseModel):
+    """Icon assignment for an owner profile."""
+
     id: uuid.UUID
-    owner_id: uuid.UUID
     icon: IconRead
     notes: str | None
     created_at: datetime
@@ -67,14 +74,17 @@ class OwnerIconAssignmentRead(BaseModel):
 
 
 class PetIconAssignmentCreate(BaseModel):
+    """Payload for attaching an icon to a pet."""
+
     pet_id: uuid.UUID
     icon_id: uuid.UUID
-    notes: str | None = Field(default=None, max_length=512)
+    notes: str | None = None
 
 
 class PetIconAssignmentRead(BaseModel):
+    """Icon assignment for a pet profile."""
+
     id: uuid.UUID
-    pet_id: uuid.UUID
     icon: IconRead
     notes: str | None
     created_at: datetime

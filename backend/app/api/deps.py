@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from functools import lru_cache
 from typing import Annotated
 from collections.abc import AsyncGenerator
 
@@ -18,6 +19,13 @@ from app.core.security import decode_access_token
 from app.db.session import get_session
 from app.models.user import User, UserRole, UserStatus
 from app.models.owner_profile import OwnerProfile
+from app.integrations import (
+    S3Client,
+    S3ClientError,
+    StripeClient,
+    StripeClientError,
+    build_s3_client,
+)
 
 settings = get_settings()
 
@@ -81,3 +89,43 @@ async def get_current_owner_profile(
         .where(OwnerProfile.user_id == current_user.id)
     )
     return result.scalar_one_or_none()
+
+
+@lru_cache
+def _build_stripe_client() -> StripeClient:
+    if not settings.stripe_secret_key:
+        raise StripeClientError("Stripe secret key is not configured")
+    return StripeClient(
+        settings.stripe_secret_key,
+        webhook_secret=settings.stripe_webhook_secret,
+        test_mode=settings.app_env != "production",
+    )
+
+
+def get_stripe_client() -> StripeClient:
+    """Provide a singleton Stripe client instance."""
+
+    try:
+        return _build_stripe_client()
+    except StripeClientError as exc:  # pragma: no cover - configuration error
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+@lru_cache
+def _build_s3_client() -> S3Client:
+    try:
+        return build_s3_client()
+    except S3ClientError as exc:  # pragma: no cover - configuration error
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+
+def get_s3_client() -> S3Client:
+    """Provide a singleton S3 client instance."""
+
+    return _build_s3_client()

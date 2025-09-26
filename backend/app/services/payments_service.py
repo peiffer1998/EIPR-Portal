@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.integrations import stripe_client
+from app.integrations import StripeClient
 from app.models import (
     DepositStatus,
     Invoice,
@@ -68,6 +68,7 @@ async def create_or_update_payment_for_invoice(
     account_id: UUID,
     invoice_id: UUID,
     currency: str = "usd",
+    stripe: StripeClient,
 ) -> tuple[str, UUID]:
     """Create or refresh a PaymentIntent and persist a transaction."""
 
@@ -83,13 +84,16 @@ async def create_or_update_payment_for_invoice(
     )
     customer_email = owner_profile.user.email
     idempotency_key = f"invoice-{invoice_id}-intent"
-    intent = stripe_client.create_payment_intent(
-        invoice_id=invoice_id,
+    intent = stripe.create_payment_intent(
         amount=amount_due,
+        invoice_id=invoice_id,
         currency=currency,
+        metadata={"account_id": str(account_id)},
         customer_email=customer_email,
-        idempotency_key=idempotency_key,
+        idempotency_seed=idempotency_key,
     )
+    if intent.client_secret is None:
+        raise ValueError("Stripe did not return a client secret")
 
     stmt = (
         select(PaymentTransaction)

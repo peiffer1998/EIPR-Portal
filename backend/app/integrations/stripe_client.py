@@ -1,169 +1,239 @@
-"""Thin wrapper around Stripe operations with local fallbacks."""
+"""Stripe SDK wrapper with deterministic fallbacks."""
 
 from __future__ import annotations
 
+import importlib
 import random
 import string
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
-from uuid import UUID, uuid4
-
-from app.core.settings import get_payment_settings
-
-try:  # pragma: no cover - exercised when stripe is available
-    import stripe  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover - deterministic fallback
-    stripe = None  # type: ignore
+from typing import Any, cast
 
 
 @dataclass(slots=True)
 class PaymentIntent:
-    """Simplified representation of a Stripe PaymentIntent."""
+    """Simplified payment intent payload."""
 
     id: str
-    client_secret: str
-    amount: int
-    currency: str
+    client_secret: str | None
     status: str
     metadata: dict[str, Any]
 
 
-# In-memory fallback store used when the stripe SDK is not available.
-_INTENT_STORE: dict[str, PaymentIntent] = {}
-_IDEMPOTENCY_STORE: dict[str, str] = {}
+class StripeClientError(RuntimeError):
+    """Raised when Stripe interaction fails."""
 
 
-def _to_cents(amount: Decimal) -> int:
-    quantized = amount.quantize(Decimal("0.01"))
-    return int((quantized * 100).to_integral_value())
+class StripeClient:
+    """Wrapper around the Stripe SDK with optional local fallbacks."""
 
+    def __init__(
+        self,
+        secret_key: str,
+        *,
+        webhook_secret: str | None = None,
+        test_mode: bool = False,
+        idempotency_prefix: str = "eipr",
+    ) -> None:
+        self._secret_key = secret_key
+        self._webhook_secret = webhook_secret
+        self._test_mode = test_mode
+        self._idempotency_prefix = idempotency_prefix
+        self._stripe: Any | None = None
+        self._intent_store: dict[str, PaymentIntent] = {}
+        self._idempotency_store: dict[str, str] = {}
+        try:
+            stripe_module = importlib.import_module("stripe")
+        except ModuleNotFoundError:  # pragma: no cover - dependency missing in tests
+            self._stripe = None
+        else:
+            stripe_obj = cast(Any, stripe_module)
+            stripe_obj.api_key = secret_key
+            stripe_obj.max_network_retries = 2
+            self._stripe = stripe_obj
 
-def _ensure_api_key() -> None:
-    settings = get_payment_settings()
-    if stripe is not None and settings.stripe_secret_key:
-        stripe.api_key = settings.stripe_secret_key
+    @property
+    def webhook_secret(self) -> str | None:
+        return self._webhook_secret
 
+    def _idempotency_key(self, seed: str | uuid.UUID | None) -> str | None:
+        if seed is None:
+            return None
+        return f"{self._idempotency_prefix}_{seed}"
 
-def _generate_id(prefix: str) -> str:
-    token = uuid4().hex
-    return f"{prefix}_{token}"
+    @staticmethod
+    def _to_cents(amount: Decimal) -> int:
+        quantized = amount.quantize(Decimal("0.01"))
+        return int((quantized * 100).to_integral_value())
 
+    def _fallback_generate_id(self, prefix: str) -> str:
+        return f"{prefix}_{uuid.uuid4().hex}"
 
-def _generate_client_secret(intent_id: str) -> str:
-    suffix = "".join(random.choices(string.ascii_letters + string.digits, k=24))
-    return f"{intent_id}_secret_{suffix}"
+    def _fallback_client_secret(self, intent_id: str) -> str:
+        suffix = "".join(random.choices(string.ascii_letters + string.digits, k=24))
+        return f"{intent_id}_secret_{suffix}"
 
+    def create_payment_intent(
+        self,
+        *,
+        amount: Decimal,
+        invoice_id: uuid.UUID,
+        currency: str = "usd",
+        metadata: dict[str, Any] | None = None,
+        customer_email: str | None = None,
+        idempotency_seed: str | uuid.UUID | None = None,
+    ) -> PaymentIntent:
+        metadata = dict(metadata or {})
+        metadata.setdefault("invoice_id", str(invoice_id))
+        cents = self._to_cents(amount)
 
-def create_payment_intent(
-    *,
-    invoice_id: UUID,
-    amount: Decimal,
-    currency: str = "usd",
-    customer_email: str | None = None,
-    idempotency_key: str | None = None,
-) -> PaymentIntent:
-    """Create (or reuse) a PaymentIntent for an invoice."""
+        if self._stripe is None:
+            key = self._idempotency_key(idempotency_seed)
+            if key and key in self._idempotency_store:
+                intent_id = self._idempotency_store[key]
+                intent = self._intent_store[intent_id]
+                updated = PaymentIntent(
+                    id=intent.id,
+                    client_secret=intent.client_secret,
+                    status="requires_payment_method",
+                    metadata=metadata,
+                )
+                self._intent_store[intent_id] = updated
+                return updated
 
-    _ensure_api_key()
-    cents = _to_cents(amount)
-    metadata = {"invoice_id": str(invoice_id)}
+            intent_id = self._fallback_generate_id("pi")
+            client_secret = self._fallback_client_secret(intent_id)
+            payment_intent = PaymentIntent(
+                id=intent_id,
+                client_secret=client_secret,
+                status="requires_payment_method",
+                metadata=metadata,
+            )
+            self._intent_store[intent_id] = payment_intent
+            if key:
+                self._idempotency_store[key] = intent_id
+            return payment_intent
 
-    if stripe is not None:
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "amount": cents,
             "currency": currency,
             "metadata": metadata,
+            "confirmation_method": "manual",
+            "confirm": False,
         }
+        if self._test_mode:
+            kwargs.setdefault("payment_method_types", ["card"])
         if customer_email:
             kwargs["receipt_email"] = customer_email
-        if idempotency_key:
-            kwargs["idempotency_key"] = idempotency_key
-        intent = stripe.PaymentIntent.create(**kwargs)  # type: ignore[misc]
+
+        try:
+            intent = self._stripe.PaymentIntent.create(
+                **kwargs,
+                idempotency_key=self._idempotency_key(idempotency_seed),
+            )
+        except Exception as exc:  # pragma: no cover - surfaced in API error handling
+            raise StripeClientError("Failed to create payment intent") from exc
+        intent_data = cast(dict[str, Any], intent)
+        metadata_dict = cast(dict[str, Any], intent_data.get("metadata", {}))
         return PaymentIntent(
-            id=intent["id"],
-            client_secret=intent["client_secret"],
-            amount=intent["amount"],
-            currency=intent["currency"],
-            status=intent["status"],
-            metadata=dict(intent.get("metadata", {})),
+            id=str(intent_data.get("id")),
+            client_secret=cast(str | None, intent_data.get("client_secret")),
+            status=str(intent_data.get("status", "unknown")),
+            metadata=dict(metadata_dict),
         )
 
-    # Fallback: emulate minimal PaymentIntent behaviour.
-    if idempotency_key and idempotency_key in _IDEMPOTENCY_STORE:
-        intent_id = _IDEMPOTENCY_STORE[idempotency_key]
-        intent = _INTENT_STORE[intent_id]
-        _INTENT_STORE[intent_id] = PaymentIntent(
-            id=intent.id,
-            client_secret=intent.client_secret,
-            amount=cents,
-            currency=currency,
-            status=intent.status,
-            metadata=metadata,
-        )
-        return _INTENT_STORE[intent_id]
+    def confirm_payment_intent(self, payment_intent_id: str) -> PaymentIntent:
+        if self._stripe is None:
+            intent = self._intent_store.get(payment_intent_id)
+            if intent is None:
+                raise StripeClientError("Payment intent not found")
+            confirmed = PaymentIntent(
+                id=intent.id,
+                client_secret=intent.client_secret,
+                status="succeeded",
+                metadata=dict(intent.metadata),
+            )
+            self._intent_store[payment_intent_id] = confirmed
+            return confirmed
 
-    intent_id = _generate_id("pi")
-    client_secret = _generate_client_secret(intent_id)
-    payment_intent = PaymentIntent(
-        id=intent_id,
-        client_secret=client_secret,
-        amount=cents,
-        currency=currency,
-        status="requires_payment_method",
-        metadata=metadata,
-    )
-    _INTENT_STORE[intent_id] = payment_intent
-    if idempotency_key:
-        _IDEMPOTENCY_STORE[idempotency_key] = intent_id
-    return payment_intent
-
-
-def retrieve_payment_intent(payment_intent_id: str) -> PaymentIntent:
-    """Retrieve a PaymentIntent, using Stripe if available."""
-
-    _ensure_api_key()
-    if stripe is not None:
-        intent = stripe.PaymentIntent.retrieve(payment_intent_id)  # type: ignore[misc]
+        try:
+            intent = self._stripe.PaymentIntent.confirm(payment_intent_id)
+        except Exception as exc:  # pragma: no cover - surfaced in API error handling
+            raise StripeClientError("Failed to confirm payment intent") from exc
+        intent_data = cast(dict[str, Any], intent)
+        metadata_dict = cast(dict[str, Any], intent_data.get("metadata", {}))
         return PaymentIntent(
-            id=intent["id"],
-            client_secret=intent.get("client_secret", ""),
-            amount=intent["amount"],
-            currency=intent["currency"],
-            status=intent["status"],
-            metadata=dict(intent.get("metadata", {})),
+            id=str(intent_data.get("id")),
+            client_secret=cast(str | None, intent_data.get("client_secret")),
+            status=str(intent_data.get("status", "unknown")),
+            metadata=dict(metadata_dict),
         )
 
-    if payment_intent_id not in _INTENT_STORE:
-        raise ValueError("PaymentIntent not found")
-    return _INTENT_STORE[payment_intent_id]
+    def retrieve_payment_intent(self, payment_intent_id: str) -> PaymentIntent:
+        if self._stripe is None:
+            intent = self._intent_store.get(payment_intent_id)
+            if intent is None:
+                raise StripeClientError("Payment intent not found")
+            return intent
+        try:
+            intent = self._stripe.PaymentIntent.retrieve(payment_intent_id)
+        except Exception as exc:  # pragma: no cover
+            raise StripeClientError("Failed to retrieve payment intent") from exc
+        intent_data = cast(dict[str, Any], intent)
+        metadata_dict = cast(dict[str, Any], intent_data.get("metadata", {}))
+        return PaymentIntent(
+            id=str(intent_data.get("id")),
+            client_secret=cast(str | None, intent_data.get("client_secret")),
+            status=str(intent_data.get("status", "unknown")),
+            metadata=dict(metadata_dict),
+        )
 
+    def refund_payment_intent(
+        self, payment_intent_id: str, *, amount: Decimal | None = None
+    ) -> dict[str, Any]:
+        if self._stripe is None:
+            intent = self._intent_store.get(payment_intent_id)
+            if intent is None:
+                raise StripeClientError("Payment intent not found")
+            status = "refunded"
+            if amount is not None:
+                if amount < Decimal("0"):
+                    raise StripeClientError("Invalid refund amount")
+                status = "partial_refund"
+            updated = PaymentIntent(
+                id=intent.id,
+                client_secret=intent.client_secret,
+                status=status,
+                metadata=intent.metadata,
+            )
+            self._intent_store[payment_intent_id] = updated
+            cents = self._to_cents(amount) if amount is not None else None
+            return {"status": status, "amount": cents}
 
-def refund_charge(
-    payment_intent_id: str, amount: Decimal | None = None
-) -> dict[str, Any]:
-    """Issue a refund for the charge associated with the payment intent."""
-
-    _ensure_api_key()
-    cents = _to_cents(amount) if amount is not None else None
-
-    if stripe is not None:
         kwargs: dict[str, Any] = {"payment_intent": payment_intent_id}
-        if cents is not None:
-            kwargs["amount"] = cents
-        refund = stripe.Refund.create(**kwargs)  # type: ignore[misc]
-        return {"status": refund["status"], "amount": refund.get("amount")}
+        if amount is not None:
+            kwargs["amount"] = self._to_cents(amount)
+        try:
+            refund = self._stripe.Refund.create(**kwargs)
+        except Exception as exc:  # pragma: no cover - surfaced in API error handling
+            raise StripeClientError("Failed to refund payment intent") from exc
+        return {
+            "status": refund.get("status", "unknown"),
+            "amount": refund.get("amount"),
+        }
 
-    intent = retrieve_payment_intent(payment_intent_id)
-    new_status = "refunded"
-    if cents is not None and cents < intent.amount:
-        new_status = "partial_refund"
-    _INTENT_STORE[payment_intent_id] = PaymentIntent(
-        id=intent.id,
-        client_secret=intent.client_secret,
-        amount=intent.amount,
-        currency=intent.currency,
-        status=new_status,
-        metadata=intent.metadata,
-    )
-    return {"status": new_status, "amount": cents or intent.amount}
+    def construct_event(self, payload: bytes, signature: str) -> Any:
+        if not self._webhook_secret:
+            raise StripeClientError("Webhook secret is not configured")
+        if self._stripe is None:
+            raise StripeClientError("Stripe SDK is not installed")
+        try:
+            event = self._stripe.Webhook.construct_event(
+                payload=payload,
+                sig_header=signature,
+                secret=self._webhook_secret,
+            )
+        except Exception as exc:  # pragma: no cover - surfaced in API error handling
+            raise StripeClientError("Invalid webhook signature") from exc
+        return event

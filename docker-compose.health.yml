@@ -1,0 +1,14 @@
+services:
+  api:
+    env_file: [.env.health]
+    ports: ["8003:8000"]
+  db:
+    environment:
+      POSTGRES_DB: eipr_health
+    ports: ["5435:5432"]
+  redis:
+    ports: ["6382:6379"]
+  mailhog:
+    ports: ["8028:8025"]
+  minio:
+    ports: ["9006:9000", "9007:9001"]

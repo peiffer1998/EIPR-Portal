@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.core.config import get_settings
 from app.core.settings import get_payment_settings
-from app.integrations import stripe_client
+from app.integrations import StripeClient, StripeClientError
 from app.models import PaymentEvent, PaymentTransaction, PaymentTransactionStatus
 from app.services import payments_service
 
@@ -113,17 +113,13 @@ async def _process_event(
 async def handle_webhook(
     request: Request,
     session: AsyncSession = Depends(deps.get_db_session),
+    stripe_client: StripeClient = Depends(deps.get_stripe_client),
 ) -> dict[str, Any]:
     settings = get_payment_settings()
     payload_bytes = await request.body()
     payload: dict[str, Any]
 
     if settings.payments_webhook_verify:
-        if stripe_client.stripe is None or not settings.stripe_webhook_secret:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Stripe verification unavailable",
-            )
         signature = request.headers.get("Stripe-Signature")
         if not signature:
             raise HTTPException(
@@ -131,16 +127,15 @@ async def handle_webhook(
                 detail="Missing signature header",
             )
         try:  # pragma: no cover - depends on stripe availability
-            event = stripe_client.stripe.Webhook.construct_event(  # type: ignore[attr-defined]
-                payload_bytes.decode("utf-8"),
-                signature,
-                settings.stripe_webhook_secret,
-            )
-            payload = event.to_dict_recursive()
-        except Exception as exc:  # pragma: no cover
+            event = stripe_client.construct_event(payload_bytes, signature)
+        except StripeClientError as exc:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid signature"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
             ) from exc
+        if hasattr(event, "to_dict_recursive"):
+            payload = cast(dict[str, Any], event.to_dict_recursive())
+        else:
+            payload = cast(dict[str, Any], event)
     else:
         try:
             payload = await request.json()

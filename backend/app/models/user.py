@@ -1,14 +1,21 @@
 """User model for staff and pet-parent identities."""
+
 from __future__ import annotations
 
 import enum
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
+
+
+if TYPE_CHECKING:  # pragma: no cover - typing only imports
+    from app.models.account import Account
+    from app.models.owner_profile import OwnerProfile
 
 
 class UserRole(str, enum.Enum):
@@ -49,7 +56,9 @@ class User(TimestampMixin, Base):
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus), default=UserStatus.INVITED, nullable=False
     )
-    is_primary_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_primary_contact: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
 
     account: Mapped["Account"] = relationship("Account", back_populates="users")
     owner_profile: Mapped["OwnerProfile | None"] = relationship(
