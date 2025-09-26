@@ -23,6 +23,7 @@ from . import (
     packages,
     pets,
     payments,
+    payments_webhook,
     pricing,
     reports,
     reservations,
@@ -47,6 +48,7 @@ router.include_router(feeding.router, tags=["feeding"])
 router.include_router(medication.router, tags=["medication"])
 router.include_router(invoices.router, tags=["invoices"])
 router.include_router(payments.router, tags=["payments"])
+router.include_router(payments_webhook.router, tags=["payments-webhook"])
 router.include_router(pricing.router, tags=["pricing"])
 router.include_router(deposits.router, tags=["deposits"])
 router.include_router(
