@@ -41,8 +41,14 @@ async def _hours_for_day(
     )
     totals: dict[uuid.UUID, int] = defaultdict(int)
     for punch in (await session.execute(stmt)).scalars():
-        rin = max(punch.rounded_in_at, start)
-        rout = min(punch.rounded_out_at or start, end)
+        rin_raw = punch.rounded_in_at
+        rout_raw = punch.rounded_out_at or start
+        if rin_raw.tzinfo is None:
+            rin_raw = rin_raw.replace(tzinfo=UTC)
+        if rout_raw.tzinfo is None:
+            rout_raw = rout_raw.replace(tzinfo=UTC)
+        rin = max(rin_raw, start)
+        rout = min(rout_raw, end)
         minutes = max(0, int((rout - rin).total_seconds() // 60))
         totals[punch.user_id] += minutes
     return {
@@ -100,16 +106,18 @@ async def record_tip(
         total_hours = sum(hours.values())
         if total_hours <= 0:
             raise ValueError("No hours recorded for pooled_by_hours tip")
-        allocated = Decimal("0")
         sorted_items = sorted(hours.items(), key=lambda item: str(item[0]))
-        for idx, (user_id, hours_worked) in enumerate(sorted_items):
+        allocated = Decimal("0")
+        for user_id, hours_worked in sorted_items:
             portion = (amount * (hours_worked / total_hours)).quantize(
                 Decimal("0.01"), rounding=ROUND_HALF_UP
             )
-            if idx == 0:
-                portion += amount - portion  # attach rounding remainder to first user
             allocated += portion
             shares.append((user_id, portion))
+        remainder = amount - allocated
+        if shares and remainder:
+            first_user_id, first_amount = shares[0]
+            shares[0] = (first_user_id, _to_money(first_amount + remainder))
     elif policy == TipPolicy.APPOINTMENT_DIRECT:
         if not appointment_id:
             raise ValueError("appointment_id required for appointment_direct policy")

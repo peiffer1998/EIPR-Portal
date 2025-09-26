@@ -1,6 +1,7 @@
 """FastAPI application entrypoint."""
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
 from app.core.config import get_settings
 from app.services.bootstrap_service import ensure_default_admin
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -26,7 +29,17 @@ if default_origin_regex is None and settings.app_env.lower() == "local":
 
 allow_origins = settings.cors_allow_origins or ["*"]
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        await ensure_default_admin()
+    except Exception:  # pragma: no cover - best effort bootstrap
+        logger.exception("Failed to ensure default admin account")
+    yield
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -38,18 +51,7 @@ app.add_middleware(
 app.include_router(api_router)
 
 
-@app.on_event("startup")
-async def bootstrap_defaults() -> None:
-    try:
-        await ensure_default_admin()
-    except Exception:  # pragma: no cover - best effort bootstrap
-        logger.exception("Failed to ensure default admin account")
-
-
 @app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
     """Return a simple welcome message."""
     return {"message": "Eastern Iowa Pet Resort API"}
-
-
-logger = logging.getLogger(__name__)
