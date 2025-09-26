@@ -150,7 +150,7 @@ async def mark_invoice_paid_on_success(
     reservation = invoice.reservation
     if reservation is not None:
         for deposit in reservation.deposits:
-            if deposit.status is DepositStatus.HELD:
+            if deposit.status == DepositStatus.HELD:
                 deposit.status = DepositStatus.CONSUMED
 
     await invoice_service.invoice_paid(
