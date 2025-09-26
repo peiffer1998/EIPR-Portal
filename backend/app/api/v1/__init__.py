@@ -23,6 +23,8 @@ from . import (
     medication_board,
     owners,
     portal,
+    portal_report_cards,
+    report_cards,
     packages,
     pets,
     payments,
@@ -47,6 +49,11 @@ router.include_router(owners.router, prefix="/owners", tags=["owners"])
 router.include_router(pets.router, prefix="/pets", tags=["pets"])
 router.include_router(portal.router)
 router.include_router(
+    portal_report_cards.router,
+    prefix="/portal",
+    tags=["portal-report-cards"],
+)
+router.include_router(
     reservations.router, prefix="/reservations", tags=["reservations"]
 )
 router.include_router(feeding.router, tags=["feeding"])
@@ -69,6 +76,9 @@ router.include_router(waitlist.router, tags=["waitlist"])
 router.include_router(location_hours.router, tags=["location-hours"])
 router.include_router(documents.router, tags=["documents"])
 router.include_router(storage.router, tags=["storage"])
+router.include_router(
+    report_cards.router, prefix="/report-cards", tags=["report-cards"]
+)
 # BEGIN OPS_P5 ROUTES
 router.include_router(feeding_board.router, prefix="/feeding", tags=["feeding"])
 router.include_router(

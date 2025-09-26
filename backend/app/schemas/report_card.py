@@ -17,7 +17,6 @@ class ReportCardCreate(BaseModel):
     owner_id: uuid.UUID
     pet_id: uuid.UUID
     occurred_on: date
-    created_by_user_id: uuid.UUID
     reservation_id: uuid.UUID | None = None
     title: str | None = None
     summary: str | None = None

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ pet_name }}'s Report Card</title>
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; color: #1f2933; line-height: 1.5; }
+      h1 { color: #d97706; }
+      .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+      .media img { max-width: 320px; border-radius: 8px; margin: 8px 8px 8px 0; }
+      .friends li { margin-bottom: 4px; }
+      .footer { margin-top: 24px; font-size: 0.875rem; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>{{ pet_name }}'s Report Card</h1>
+      <p><strong>Date:</strong> {{ occurred_on }}</p>
+      {% if summary %}
+      <p>{{ summary }}</p>
+      {% endif %}
+      {% if rating is not none %}
+      <p><strong>Overall rating:</strong> {{ rating }} / 5</p>
+      {% endif %}
+
+      {% if media %}
+      <div class="media">
+        <h2>Highlights</h2>
+        {% for item in media %}
+          {% if item.display_url %}
+            <div>
+              <img src="{{ item.display_url }}" alt="{{ item.document.file_name }}" />
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if friends %}
+      <div class="friends">
+        <h2>Friends Today</h2>
+        <ul>
+          {% for friend in friends %}
+            <li>{{ friend.name }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <div class="footer">
+        <p>Thank you for trusting Eastern Iowa Pet Resort with {{ pet_name }}'s care.</p>
+      </div>
+    </div>
+  </body>
+</html>

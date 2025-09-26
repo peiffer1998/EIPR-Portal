@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.integrations import S3Client
+from fastapi import BackgroundTasks
 from app.models import (
     Document,
     OwnerProfile,
@@ -22,6 +23,7 @@ from app.models import (
     Reservation,
     User,
 )
+from app.services import email_service
 from app.schemas.document import DocumentRead
 from app.schemas.report_card import (
     ReportCardMediaRead,
@@ -36,6 +38,8 @@ _FRIEND_LOAD_OPTIONS: Final = [
     selectinload(ReportCard.owner).selectinload(OwnerProfile.user),
     selectinload(ReportCard.created_by),
 ]
+
+UNSET: Final = object()
 
 
 def _now() -> datetime:
@@ -242,6 +246,56 @@ async def create_card(
     return card
 
 
+async def update_card(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    card_id: uuid.UUID,
+    title: str | None | object = UNSET,
+    summary: str | None | object = UNSET,
+    rating: int | None | object = UNSET,
+    occurred_on: date | None | object = UNSET,
+    reservation_id: uuid.UUID | None | object = UNSET,
+) -> ReportCard:
+    """Update mutable fields on a report card."""
+
+    card = await _get_card(session, account_id=account_id, card_id=card_id, eager=False)
+
+    if title is not UNSET:
+        if title is not None and not isinstance(title, str):
+            raise ValueError("Invalid title value")
+        card.title = title  # type: ignore[assignment]
+    if summary is not UNSET:
+        if summary is not None and not isinstance(summary, str):
+            raise ValueError("Invalid summary value")
+        card.summary = summary  # type: ignore[assignment]
+    if rating is not UNSET:
+        if rating is not None and not isinstance(rating, int):
+            raise ValueError("Invalid rating value")
+        card.rating = rating  # type: ignore[assignment]
+    if occurred_on is not UNSET:
+        if occurred_on is not None and not isinstance(occurred_on, date):
+            raise ValueError("Invalid occurred_on value")
+        card.occurred_on = occurred_on  # type: ignore[assignment]
+
+    if reservation_id is not UNSET:
+        if reservation_id is None:
+            card.reservation_id = None
+        elif isinstance(reservation_id, uuid.UUID):
+            reservation = await _get_reservation(
+                session, account_id=account_id, reservation_id=reservation_id
+            )
+            if reservation.pet_id != card.pet_id:
+                raise ValueError("Reservation does not belong to pet")
+            card.reservation_id = reservation.id
+        else:  # pragma: no cover
+            raise ValueError("Invalid reservation identifier")
+
+    await session.commit()
+    await session.refresh(card)
+    return card
+
+
 async def attach_media(
     session: AsyncSession,
     *,
@@ -318,12 +372,34 @@ async def mark_sent(
     account_id: uuid.UUID,
     card_id: uuid.UUID,
     sent_at: datetime | None = None,
+    background_tasks: BackgroundTasks | None = None,
+    s3_client: S3Client | None = None,
 ) -> ReportCard:
-    card = await _get_card(session, account_id=account_id, card_id=card_id, eager=False)
+    card = await _get_card(session, account_id=account_id, card_id=card_id, eager=True)
+
+    recipient: str | None = None
+    if card.owner and getattr(card.owner, "user", None):
+        recipient = getattr(card.owner.user, "email", None)
+
     card.status = ReportCardStatus.SENT
     card.sent_at = sent_at or _now()
+
+    card_read: ReportCardRead | None = None
+    if recipient:
+        card_read = _card_to_read(card, s3_client=s3_client)
+
     await session.commit()
     await session.refresh(card)
+
+    if recipient and card_read:
+        if background_tasks is not None:
+            background_tasks.add_task(
+                email_service.send_report_card_email, recipient, card_read
+            )
+        else:
+            email_service.send_report_card_email(recipient, card_read)
+
+    return card
     return card
 
 
