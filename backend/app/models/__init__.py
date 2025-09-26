@@ -12,11 +12,13 @@ from app.models.immunization import (
     ImmunizationType,
 )
 from app.models.agreement import AgreementSignature, AgreementTemplate
-from app.models.icon import Icon, OwnerIcon, PetIcon
+from app.models.icon import Icon, IconEntity, OwnerIcon, PetIcon
 from app.models.location_capacity import LocationCapacityRule
 from app.models.medication_schedule import MedicationSchedule
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet, PetType
+from app.models.pricing import PriceRule, PriceRuleType, Promotion, PromotionKind
+from app.models.deposit import Deposit, DepositStatus
 from app.models.reservation import Reservation, ReservationStatus, ReservationType
 from app.models.staff_invitation import StaffInvitation, StaffInvitationStatus
 from app.models.service_catalog_item import ServiceCatalogItem, ServiceCatalogKind
@@ -25,8 +27,6 @@ from app.models.waitlist_entry import WaitlistEntry, WaitlistStatus
 from app.models.location_hours import LocationHour, LocationClosure
 from app.models.document import Document
 from app.models.user import User, UserRole, UserStatus
-from app.models.pricing import PriceRule, PriceRuleType, Promotion, PromotionKind
-from app.models.deposit import Deposit, DepositStatus
 
 __all__ = [
     "Account",
@@ -35,12 +35,6 @@ __all__ = [
     "Invoice",
     "InvoiceItem",
     "InvoiceStatus",
-    "PriceRule",
-    "PriceRuleType",
-    "Promotion",
-    "PromotionKind",
-    "Deposit",
-    "DepositStatus",
     "Location",
     "PasswordResetToken",
     "ImmunizationRecord",
@@ -49,6 +43,7 @@ __all__ = [
     "AgreementTemplate",
     "AgreementSignature",
     "Icon",
+    "IconEntity",
     "OwnerIcon",
     "PetIcon",
     "LocationCapacityRule",
@@ -66,6 +61,12 @@ __all__ = [
     "LocationHour",
     "LocationClosure",
     "Document",
+    "Deposit",
+    "DepositStatus",
+    "PriceRule",
+    "PriceRuleType",
+    "Promotion",
+    "PromotionKind",
     "Reservation",
     "ReservationStatus",
     "ReservationType",

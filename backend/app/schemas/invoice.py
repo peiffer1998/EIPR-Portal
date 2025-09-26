@@ -15,11 +15,13 @@ class InvoiceItemBase(BaseModel):
     """Shared fields for invoice items."""
 
     description: str
-    amount: Decimal = Field(gt=Decimal("0"))
+    amount: Decimal
 
 
 class InvoiceItemCreate(InvoiceItemBase):
     """Payload to add an invoice item."""
+
+    amount: Decimal = Field(gt=Decimal("0"))
 
 
 class InvoiceItemRead(InvoiceItemBase):
@@ -42,6 +44,7 @@ class InvoiceRead(BaseModel):
     subtotal: Decimal
     discount_total: Decimal
     tax_total: Decimal
+    total: Decimal
     total_amount: Decimal
     paid_at: datetime | None = None
     created_at: datetime
@@ -58,7 +61,26 @@ class InvoicePaymentRequest(BaseModel):
     note: str | None = None
 
 
-class InvoicePromotionApply(BaseModel):
-    """Payload to apply a promotion code."""
+class InvoiceFromReservationRequest(BaseModel):
+    """Request payload to generate an invoice from a reservation."""
 
-    code: str = Field(min_length=1)
+    reservation_id: uuid.UUID
+    promotion_code: str | None = None
+
+
+class InvoiceApplyPromotionRequest(BaseModel):
+    """Request payload to recalculate totals with a promotion."""
+
+    code: str
+
+
+class InvoiceTotalsRead(BaseModel):
+    """Expose invoice totals after recalculation."""
+
+    invoice_id: uuid.UUID
+    subtotal: Decimal
+    discount_total: Decimal
+    tax_total: Decimal
+    total: Decimal
+
+    model_config = ConfigDict(from_attributes=True)

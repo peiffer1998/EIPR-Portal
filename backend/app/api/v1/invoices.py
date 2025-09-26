@@ -11,17 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.models.invoice import InvoiceStatus
 from app.models.user import User, UserRole
-from app.schemas.deposit import DepositHoldRequest, DepositRead
 from app.schemas.invoice import (
+    InvoiceApplyPromotionRequest,
+    InvoiceFromReservationRequest,
     InvoiceItemCreate,
     InvoicePaymentRequest,
-    InvoicePromotionApply,
     InvoiceRead,
+    InvoiceTotalsRead,
 )
 from app.services import billing_service, invoice_service, notification_service
 
 router = APIRouter(prefix="/invoices")
-deposit_router = APIRouter(prefix="/reservations")
 
 
 def _assert_staff(user: User) -> None:
@@ -44,32 +44,6 @@ async def list_invoices(
     return [InvoiceRead.model_validate(inv) for inv in invoices]
 
 
-@router.post(
-    "/{reservation_id}/create",
-    response_model=InvoiceRead,
-    summary="Create invoice for reservation",
-)
-async def create_invoice_for_reservation(
-    reservation_id: uuid.UUID,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-    background_tasks: BackgroundTasks,
-) -> InvoiceRead:
-    _assert_staff(current_user)
-    try:
-        invoice = await invoice_service.create_invoice_for_reservation(
-            session,
-            account_id=current_user.account_id,
-            reservation_id=reservation_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    notification_service.notify_invoice_available(invoice, background_tasks)
-    return InvoiceRead.model_validate(invoice)
-
-
 @router.get("/{invoice_id}", response_model=InvoiceRead, summary="Get invoice")
 async def get_invoice(
     invoice_id: uuid.UUID,
@@ -84,6 +58,43 @@ async def get_invoice(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
         )
+    return InvoiceRead.model_validate(invoice)
+
+
+@router.post(
+    "/from-reservation",
+    response_model=InvoiceRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an invoice from a reservation",
+)
+async def create_invoice_from_reservation(
+    payload: InvoiceFromReservationRequest,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    background_tasks: BackgroundTasks,
+) -> InvoiceRead:
+    _assert_staff(current_user)
+    try:
+        invoice_id = await invoice_service.create_from_reservation(
+            session,
+            reservation_id=payload.reservation_id,
+            account_id=current_user.account_id,
+            promotion_code=payload.promotion_code,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    invoice = await billing_service.get_invoice(
+        session, account_id=current_user.account_id, invoice_id=invoice_id
+    )
+    if invoice is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invoice not persisted",
+        )
+    notification_service.notify_invoice_available(invoice, background_tasks)
     return InvoiceRead.model_validate(invoice)
 
 
@@ -122,28 +133,28 @@ async def add_invoice_item(
 
 @router.post(
     "/{invoice_id}/apply-promo",
-    response_model=InvoiceRead,
+    response_model=InvoiceTotalsRead,
     summary="Apply promotion to invoice",
 )
-async def apply_promotion(
+async def apply_invoice_promotion(
     invoice_id: uuid.UUID,
-    payload: InvoicePromotionApply,
+    payload: InvoiceApplyPromotionRequest,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> InvoiceRead:
+) -> InvoiceTotalsRead:
     _assert_staff(current_user)
     try:
-        updated = await invoice_service.apply_promotion(
+        totals = await invoice_service.compute_totals(
             session,
-            account_id=current_user.account_id,
             invoice_id=invoice_id,
-            code=payload.code,
+            account_id=current_user.account_id,
+            promotion_code=payload.code,
         )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
-    return InvoiceRead.model_validate(updated)
+    return InvoiceTotalsRead.model_validate(totals)
 
 
 @router.post(
@@ -177,33 +188,3 @@ async def process_payment(
         ) from exc
     notification_service.notify_payment_receipt(updated, background_tasks)
     return InvoiceRead.model_validate(updated)
-
-
-@deposit_router.post(
-    "/{reservation_id}/hold-deposit",
-    response_model=DepositRead,
-    summary="Hold a reservation deposit",
-)
-async def hold_deposit(
-    reservation_id: uuid.UUID,
-    payload: DepositHoldRequest,
-    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
-    current_user: Annotated[User, Depends(deps.get_current_active_user)],
-) -> DepositRead:
-    _assert_staff(current_user)
-    try:
-        deposit = await invoice_service.hold_deposit(
-            session,
-            account_id=current_user.account_id,
-            reservation_id=reservation_id,
-            owner_id=payload.owner_id,
-            amount=payload.amount,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
-        ) from exc
-    return DepositRead.model_validate(deposit)
-
-
-__all__ = ["router", "deposit_router"]

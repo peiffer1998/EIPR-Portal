@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from functools import lru_cache
 from typing import Annotated
+from collections.abc import AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -25,7 +26,7 @@ settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.api_v1_prefix}/auth/token")
 
 
-async def get_db_session() -> AsyncSession:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Provide an async database session."""
     async for session in get_session():
         yield session

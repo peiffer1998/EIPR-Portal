@@ -1,4 +1,4 @@
-"""Deposit tracking models."""
+"""Deposit model for reservation prepayments."""
 
 from __future__ import annotations
 
@@ -13,14 +13,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
-if TYPE_CHECKING:  # pragma: no cover - typing only imports
-    from app.models.account import Account
-    from app.models.owner_profile import OwnerProfile
-    from app.models.reservation import Reservation
+if TYPE_CHECKING:
+    from app.models import OwnerProfile, Reservation
 
 
 class DepositStatus(str, enum.Enum):
-    """Lifecycle for reservation deposits."""
+    """Lifecycle states for a reservation deposit."""
 
     HELD = "held"
     CONSUMED = "consumed"
@@ -29,13 +27,11 @@ class DepositStatus(str, enum.Enum):
 
 
 class Deposit(TimestampMixin, Base):
-    """Monetary deposit tied to a reservation."""
+    """Money collected ahead of a reservation."""
 
     __tablename__ = "deposits"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        primary_key=True, default=uuid.uuid4, unique=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     account_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
@@ -45,11 +41,10 @@ class Deposit(TimestampMixin, Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("owner_profiles.id", ondelete="CASCADE"), nullable=False
     )
-    amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     status: Mapped[DepositStatus] = mapped_column(Enum(DepositStatus), nullable=False)
 
-    account: Mapped["Account"] = relationship("Account", back_populates="deposits")
-    reservation: Mapped["Reservation"] = relationship("Reservation", backref="deposits")
-    owner: Mapped["OwnerProfile"] = relationship(
-        "OwnerProfile", back_populates="deposits"
+    reservation: Mapped["Reservation"] = relationship(
+        "Reservation", back_populates="deposits"
     )
+    owner: Mapped["OwnerProfile"] = relationship("OwnerProfile")

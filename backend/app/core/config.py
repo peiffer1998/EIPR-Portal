@@ -3,7 +3,9 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from typing import Any
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,16 +64,14 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    @model_validator(mode="after")
-    def ensure_jwt_secret(cls, values: "Settings") -> "Settings":
+    def model_post_init(self, __context: Any) -> None:
         """Populate JWT secret from the generic secret when not provided."""
 
-        if not values.jwt_secret_key:
-            values.jwt_secret_key = values.secret_key
-        return values
+        if not self.jwt_secret_key:
+            object.__setattr__(self, "jwt_secret_key", self.secret_key)
 
 
 @lru_cache
 def get_settings() -> Settings:
     """Return a cached settings instance."""
-    return Settings()  # type: ignore[arg-type]
+    return Settings()  # type: ignore[call-arg]

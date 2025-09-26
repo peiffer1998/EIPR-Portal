@@ -1,4 +1,4 @@
-"""Deposit schemas."""
+"""Deposit lifecycle schemas."""
 
 from __future__ import annotations
 
@@ -8,21 +8,19 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import DepositStatus
+from app.models.deposit import DepositStatus
 
 
-class DepositHoldRequest(BaseModel):
-    """Payload to create a held deposit."""
+class DepositActionRequest(BaseModel):
+    """Payload describing a deposit lifecycle action."""
 
-    owner_id: uuid.UUID
     amount: Decimal = Field(gt=Decimal("0"))
 
 
 class DepositRead(BaseModel):
-    """Serialized deposit."""
+    """Serialized deposit state."""
 
     id: uuid.UUID
-    account_id: uuid.UUID
     reservation_id: uuid.UUID
     owner_id: uuid.UUID
     amount: Decimal

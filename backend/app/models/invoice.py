@@ -15,16 +15,16 @@ from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
 
-if TYPE_CHECKING:  # pragma: no cover - typing only imports
-    from app.models.reservation import Reservation
-
-
 class InvoiceStatus(str, enum.Enum):
     """Invoice lifecycle states."""
 
     PENDING = "pending"
     PAID = "paid"
     VOID = "void"
+
+
+if TYPE_CHECKING:
+    from app.models.reservation import Reservation
 
 
 class Invoice(TimestampMixin, Base):
@@ -48,13 +48,16 @@ class Invoice(TimestampMixin, Base):
         Enum(InvoiceStatus), default=InvoiceStatus.PENDING, nullable=False
     )
     subtotal: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), default=Decimal("0"), nullable=False
+        Numeric(12, 2), default=Decimal("0"), nullable=False
     )
     discount_total: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), default=Decimal("0"), nullable=False
+        Numeric(12, 2), default=Decimal("0"), nullable=False
     )
     tax_total: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), default=Decimal("0"), nullable=False
+        Numeric(12, 2), default=Decimal("0"), nullable=False
+    )
+    total: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), nullable=False
     )
     total_amount: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), default=Decimal("0"), nullable=False

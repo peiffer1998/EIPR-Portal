@@ -1,297 +1,263 @@
-"""Invoice orchestration utilities."""
+"""Invoice creation and totals service."""
 
 from __future__ import annotations
 
-import uuid
-from datetime import UTC, date, datetime
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Final
+from uuid import UUID
 
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import (
-    Deposit,
-    DepositStatus,
-    Invoice,
-    InvoiceItem,
-    InvoiceStatus,
-    OwnerProfile,
-    Promotion,
-    PromotionKind,
-    Reservation,
-)
+from app.models import Deposit, DepositStatus, Invoice, InvoiceItem, Pet, Reservation
 from app.services import pricing_service
 
-_CURRENCY_QUANT = Decimal("0.01")
+_MONEY_PLACES: Final = Decimal("0.01")
 
 
-class InvoiceNotFoundError(RuntimeError):
-    """Raised when an invoice is not present."""
+def _to_money(value: Decimal | float | str) -> Decimal:
+    """Normalize numeric values to a money-safe decimal."""
+
+    return Decimal(value).quantize(_MONEY_PLACES, rounding=ROUND_HALF_UP)
 
 
-async def create_invoice_for_reservation(
+@dataclass(slots=True)
+class InvoiceTotals:
+    """Representation of invoice totals."""
+
+    invoice_id: UUID
+    subtotal: Decimal
+    discount_total: Decimal
+    tax_total: Decimal
+    total: Decimal
+
+
+async def create_from_reservation(
     session: AsyncSession,
     *,
-    account_id: uuid.UUID,
-    reservation_id: uuid.UUID,
-) -> Invoice:
-    reservation = await session.get(
-        Reservation,
-        reservation_id,
-        options=[selectinload(Reservation.invoice).selectinload(Invoice.items)],
-    )
-    if reservation is None or reservation.account_id != account_id:
-        raise ValueError("Reservation not found for account")
+    reservation_id: UUID,
+    account_id: UUID,
+    promotion_code: str | None = None,
+) -> UUID:
+    """Create an invoice populated with pricing line items."""
+
+    reservation = await _load_reservation(session, reservation_id, account_id)
+    if reservation is None:
+        raise ValueError("Reservation not found")
+
     if reservation.invoice is not None:
-        raise ValueError("Invoice already exists for reservation")
+        raise ValueError("Reservation already has an invoice")
+
+    quote = await pricing_service.quote_reservation(
+        session,
+        reservation_id=reservation.id,
+        account_id=account_id,
+        promotion_code=promotion_code,
+    )
 
     invoice = Invoice(
         account_id=account_id,
-        reservation_id=reservation_id,
-        status=InvoiceStatus.PENDING,
+        reservation_id=reservation.id,
+        subtotal=quote.subtotal,
+        discount_total=quote.discount_total,
+        tax_total=quote.tax_total,
+        total=quote.total,
+        total_amount=quote.total,
     )
-    base_item = InvoiceItem(
-        description="Reservation base rate", amount=reservation.base_rate
-    )
-    invoice.items.append(base_item)
     session.add(invoice)
     await session.flush()
 
-    await compute_totals(session, account_id=account_id, invoice_id=invoice.id)
-    return await _get_required_invoice(
-        session, account_id=account_id, invoice_id=invoice.id
+    session.add_all(
+        [
+            InvoiceItem(
+                invoice_id=invoice.id,
+                description=line.description,
+                amount=line.amount,
+            )
+            for line in quote.items
+        ]
     )
+    await session.commit()
+    await session.refresh(invoice, attribute_names=["items"])
+    return invoice.id
 
 
 async def compute_totals(
     session: AsyncSession,
     *,
-    account_id: uuid.UUID,
-    invoice_id: uuid.UUID,
+    invoice_id: UUID,
+    account_id: UUID,
     promotion_code: str | None = None,
-) -> Invoice:
-    invoice = await _get_required_invoice(
-        session, account_id=account_id, invoice_id=invoice_id
-    )
+) -> InvoiceTotals:
+    """Recalculate invoice totals using pricing rules and optional promotion."""
+
+    invoice = await _load_invoice(session, invoice_id, account_id)
+    if invoice is None:
+        raise ValueError("Invoice not found")
+
     quote = await pricing_service.quote_reservation(
-        session, reservation_id=invoice.reservation_id
-    )
-    invoice.subtotal = _quantize(quote.subtotal)
-    invoice.discount_total = _quantize(quote.discount_total)
-    invoice.tax_total = _quantize(quote.tax_total)
-
-    promo_discount = Decimal("0")
-    if promotion_code:
-        promotion = await _get_active_promotion(
-            session,
-            account_id=account_id,
-            code=promotion_code,
-            as_of=invoice.reservation.start_at.date() if invoice.reservation else None,
-        )
-        promo_discount = _calculate_promotion_discount(promotion, invoice.subtotal)
-        invoice.discount_total = _quantize(invoice.discount_total + promo_discount)
-
-    invoice.total_amount = _quantize(
-        invoice.subtotal - invoice.discount_total + invoice.tax_total
-    )
-    session.add(invoice)
-    await session.commit()
-    await session.refresh(
-        invoice,
-        attribute_names=[
-            "subtotal",
-            "discount_total",
-            "tax_total",
-            "total_amount",
-            "items",
-        ],
-    )
-    return invoice
-
-
-async def apply_promotion(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    invoice_id: uuid.UUID,
-    code: str,
-) -> Invoice:
-    return await compute_totals(
-        session, account_id=account_id, invoice_id=invoice_id, promotion_code=code
-    )
-
-
-async def hold_deposit(
-    session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    reservation_id: uuid.UUID,
-    owner_id: uuid.UUID,
-    amount: Decimal,
-) -> Deposit:
-    reservation = await session.get(Reservation, reservation_id)
-    if reservation is None or reservation.account_id != account_id:
-        raise ValueError("Reservation not found for account")
-    owner = await session.get(
-        OwnerProfile,
-        owner_id,
-        options=[selectinload(OwnerProfile.user)],
-    )
-    if owner is None or owner.user is None or owner.user.account_id != account_id:
-        raise ValueError("Owner not found for account")
-    if amount <= 0:
-        raise ValueError("Deposit amount must be positive")
-
-    deposit = Deposit(
-        account_id=account_id,
-        reservation_id=reservation_id,
-        owner_id=owner_id,
-        amount=_quantize(amount),
-        status=DepositStatus.HELD,
-    )
-    session.add(deposit)
-    await session.commit()
-    await session.refresh(deposit)
-    return deposit
-
-
-async def change_deposit_status(
-    session: AsyncSession,
-    *,
-    deposit_id: uuid.UUID,
-    account_id: uuid.UUID,
-    status: DepositStatus,
-) -> Deposit:
-    deposit = await session.get(Deposit, deposit_id)
-    if deposit is None or deposit.account_id != account_id:
-        raise ValueError("Deposit not found for account")
-    deposit.status = status
-    await session.commit()
-    await session.refresh(deposit)
-    return deposit
-
-
-async def consume_deposit(
-    session: AsyncSession,
-    *,
-    deposit_id: uuid.UUID,
-    account_id: uuid.UUID,
-) -> Deposit:
-    return await change_deposit_status(
         session,
-        deposit_id=deposit_id,
+        reservation_id=invoice.reservation_id,
         account_id=account_id,
-        status=DepositStatus.CONSUMED,
+        promotion_code=promotion_code,
     )
 
-
-async def refund_deposit(
-    session: AsyncSession,
-    *,
-    deposit_id: uuid.UUID,
-    account_id: uuid.UUID,
-) -> Deposit:
-    return await change_deposit_status(
-        session,
-        deposit_id=deposit_id,
-        account_id=account_id,
-        status=DepositStatus.REFUNDED,
+    invoice.items.clear()
+    await session.flush()
+    session.add_all(
+        [
+            InvoiceItem(
+                invoice_id=invoice.id,
+                description=line.description,
+                amount=line.amount,
+            )
+            for line in quote.items
+        ]
     )
 
+    invoice.subtotal = quote.subtotal
+    invoice.discount_total = quote.discount_total
+    invoice.tax_total = quote.tax_total
+    invoice.total = quote.total
+    invoice.total_amount = quote.total
+    await session.commit()
+    await session.refresh(invoice)
 
-async def forfeit_deposit(
-    session: AsyncSession,
-    *,
-    deposit_id: uuid.UUID,
-    account_id: uuid.UUID,
-) -> Deposit:
-    return await change_deposit_status(
-        session,
-        deposit_id=deposit_id,
-        account_id=account_id,
-        status=DepositStatus.FORFEITED,
+    return InvoiceTotals(
+        invoice_id=invoice.id,
+        subtotal=invoice.subtotal,
+        discount_total=invoice.discount_total,
+        tax_total=invoice.tax_total,
+        total=invoice.total,
     )
 
 
 async def consume_reservation_deposits(
     session: AsyncSession,
     *,
-    account_id: uuid.UUID,
-    reservation_id: uuid.UUID,
-) -> list[Deposit]:
-    stmt: Select[Deposit] = (
-        select(Deposit)
-        .where(
-            Deposit.account_id == account_id,
-            Deposit.reservation_id == reservation_id,
-            Deposit.status == DepositStatus.HELD,
+    reservation_id: UUID,
+    account_id: UUID,
+) -> None:
+    """Mark any held deposits for a reservation as consumed."""
+
+    reservation = await _load_reservation(session, reservation_id, account_id)
+    if reservation is None:
+        return
+
+    updated = False
+    for deposit in reservation.deposits:
+        if deposit.status == DepositStatus.HELD:
+            deposit.status = DepositStatus.CONSUMED
+            updated = True
+    if updated:
+        await session.commit()
+
+
+async def settle_deposit(
+    session: AsyncSession,
+    *,
+    reservation_id: UUID,
+    account_id: UUID,
+    action: str,
+    amount: Decimal,
+) -> Deposit:
+    """Transition a deposit through its lifecycle."""
+
+    action_normalized = action.lower()
+    try:
+        status = {
+            "hold": DepositStatus.HELD,
+            "consume": DepositStatus.CONSUMED,
+            "refund": DepositStatus.REFUNDED,
+            "forfeit": DepositStatus.FORFEITED,
+        }[action_normalized]
+    except KeyError as exc:
+        raise ValueError("Unsupported deposit action") from exc
+
+    reservation = await _load_reservation(session, reservation_id, account_id)
+    if reservation is None:
+        raise ValueError("Reservation not found")
+
+    owner = reservation.pet.owner if reservation.pet else None
+    if owner is None:
+        raise ValueError("Reservation is missing owner")
+
+    normalized_amount = _to_money(amount)
+    if normalized_amount <= 0:
+        raise ValueError("Deposit amount must be positive")
+
+    if status is DepositStatus.HELD:
+        existing = await _get_active_deposit(session, reservation_id, account_id)
+        if existing is not None:
+            raise ValueError("Deposit already held")
+        deposit = Deposit(
+            account_id=account_id,
+            reservation_id=reservation_id,
+            owner_id=owner.id,
+            amount=normalized_amount,
+            status=status,
         )
-        .order_by(Deposit.created_at.asc())
-    )
-    result = await session.execute(stmt)
-    deposits = list(result.scalars())
-    if not deposits:
-        return []
-    for deposit in deposits:
-        deposit.status = DepositStatus.CONSUMED
+        session.add(deposit)
+    else:
+        existing = await _get_active_deposit(session, reservation_id, account_id)
+        if existing is None:
+            raise ValueError("No held deposit to settle")
+        existing.status = status
+        existing.amount = normalized_amount
+        deposit = existing
+
     await session.commit()
-    for deposit in deposits:
-        await session.refresh(deposit)
-    return deposits
+    await session.refresh(deposit)
+    return deposit
 
 
-async def _get_required_invoice(
+async def _load_reservation(
     session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    invoice_id: uuid.UUID,
-) -> Invoice:
-    stmt: Select[Invoice] = (
+    reservation_id: UUID,
+    account_id: UUID,
+) -> Reservation | None:
+    stmt: Select[tuple[Reservation]] = (
+        select(Reservation)
+        .options(
+            selectinload(Reservation.pet).selectinload(Pet.owner),
+            selectinload(Reservation.deposits),
+            selectinload(Reservation.invoice),
+        )
+        .where(
+            Reservation.id == reservation_id,
+            Reservation.account_id == account_id,
+        )
+    )
+    result = await session.execute(stmt)
+    return result.scalars().unique().one_or_none()
+
+
+async def _load_invoice(
+    session: AsyncSession, invoice_id: UUID, account_id: UUID
+) -> Invoice | None:
+    stmt = (
         select(Invoice)
+        .options(
+            selectinload(Invoice.items),
+            selectinload(Invoice.reservation),
+        )
         .where(Invoice.id == invoice_id, Invoice.account_id == account_id)
-        .options(selectinload(Invoice.items), selectinload(Invoice.reservation))
     )
     result = await session.execute(stmt)
-    invoice = result.scalars().unique().one_or_none()
-    if invoice is None:
-        raise InvoiceNotFoundError("Invoice not found")
-    return invoice
+    return result.scalars().unique().one_or_none()
 
 
-async def _get_active_promotion(
+async def _get_active_deposit(
     session: AsyncSession,
-    *,
-    account_id: uuid.UUID,
-    code: str,
-    as_of: date | None,
-) -> Promotion:
-    stmt = select(Promotion).where(
-        Promotion.account_id == account_id,
-        Promotion.code == code,
-        Promotion.active.is_(True),
+    reservation_id: UUID,
+    account_id: UUID,
+) -> Deposit | None:
+    stmt = select(Deposit).where(
+        Deposit.reservation_id == reservation_id,
+        Deposit.account_id == account_id,
+        Deposit.status == DepositStatus.HELD,
     )
     result = await session.execute(stmt)
-    promotion = result.scalars().one_or_none()
-    if promotion is None:
-        raise ValueError("Promotion code not found")
-
-    as_of_date = as_of or datetime.now(UTC).date()
-    if promotion.starts_on and promotion.starts_on > as_of_date:
-        raise ValueError("Promotion is not active yet")
-    if promotion.ends_on and promotion.ends_on < as_of_date:
-        raise ValueError("Promotion has expired")
-    return promotion
-
-
-def _calculate_promotion_discount(promotion: Promotion, subtotal: Decimal) -> Decimal:
-    if promotion.kind is PromotionKind.AMOUNT:
-        return _quantize(min(subtotal, promotion.value))
-    if promotion.value <= 0:
-        return Decimal("0")
-    percent = promotion.value / Decimal("100")
-    return _quantize(subtotal * percent)
-
-
-def _quantize(value: Decimal) -> Decimal:
-    return value.quantize(_CURRENCY_QUANT, rounding=ROUND_HALF_UP)
+    return result.scalars().one_or_none()

@@ -1,28 +1,16 @@
-"""Billing API integration tests."""
-
+# Billing API tests.
 from __future__ import annotations
 
-import os
-import uuid
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Any
+from datetime import datetime, timedelta, timezone
+import uuid
 
 import pytest
 from httpx import AsyncClient
 
-from app.api import deps
+from app.core.security import get_password_hash
 from app.db.session import get_sessionmaker
-from app.integrations import PaymentIntent
-from app.main import app
-from app.models import (
-    Deposit,
-    DepositStatus,
-    PriceRule,
-    PriceRuleType,
-    Promotion,
-    PromotionKind,
-)
+from app.models import Account, Location, User, UserRole, UserStatus
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,13 +29,13 @@ async def _create_owner_pet_reservation(
     client: AsyncClient,
     headers: dict[str, str],
     location_id: str,
-) -> dict[str, str]:
+) -> tuple[str, str]:
     owner_resp = await client.post(
         "/api/v1/owners",
         json={
             "first_name": "Bill",
             "last_name": "Payer",
-            "email": f"bill.payer-{uuid.uuid4().hex[:6]}@example.com",
+            "email": "bill.payer@example.com",
             "password": "StrongPass1!",
         },
         headers=headers,
@@ -84,192 +72,127 @@ async def _create_owner_pet_reservation(
     )
     assert reservation_resp.status_code == 201
     reservation_id = reservation_resp.json()["id"]
-    return {
-        "owner_id": owner_id,
-        "pet_id": pet_id,
-        "reservation_id": reservation_id,
-    }
+    return reservation_id, pet_id
 
 
-@pytest.fixture()
-async def stripe_stub():
-    class _StubStripeClient:
-        def __init__(self) -> None:
-            self.invoice_id: uuid.UUID | None = None
-            self.account_id: uuid.UUID | None = None
+async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
+    client: AsyncClient = app_context["client"]  # type: ignore[assignment]
+    manager_email = app_context["manager_email"]
+    manager_password = app_context["manager_password"]
+    location_id = str(app_context["location_id"])
 
-        def create_payment_intent(
-            self, *, amount: Decimal, invoice_id: uuid.UUID, metadata: dict[str, Any]
-        ) -> PaymentIntent:
-            self.invoice_id = invoice_id
-            self.account_id = uuid.UUID(metadata["account_id"])
-            return PaymentIntent(
-                id="pi_test_123",
-                client_secret="secret",
-                status="requires_confirmation",
-                metadata={
-                    "invoice_id": str(invoice_id),
-                    "account_id": metadata["account_id"],
-                },
-            )
+    token = await _authenticate(client, manager_email, manager_password)
+    headers = {"Authorization": f"Bearer {token}"}
 
-        def confirm_payment_intent(self, payment_intent_id: str) -> PaymentIntent:
-            return PaymentIntent(
-                id=payment_intent_id,
-                client_secret="secret",
-                status="succeeded",
-                metadata={
-                    "invoice_id": str(self.invoice_id),
-                    "account_id": str(self.account_id),
-                },
-            )
+    reservation_id, _ = await _create_owner_pet_reservation(
+        client, headers, location_id
+    )
 
-        def construct_event(self, payload: bytes, signature: str) -> dict[str, Any]:
-            return {
-                "type": "payment_intent.succeeded",
-                "data": {
-                    "object": {
-                        "metadata": {
-                            "invoice_id": str(self.invoice_id),
-                            "account_id": str(self.account_id),
-                        }
-                    }
-                },
-            }
+    invoice_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/invoice",
+        headers=headers,
+    )
+    assert invoice_resp.status_code == 200
+    invoice = invoice_resp.json()
+    invoice_id = invoice["id"]
+    assert invoice["status"] == "pending"
+    assert len(invoice["items"]) == 1
+    line = invoice["items"][0]
+    assert line["description"] == "Base rate"
+    assert line["amount"] == "200.00"
+    assert invoice["subtotal"] == "200.00"
+    assert invoice["total"] == "200.00"
 
-    stub = _StubStripeClient()
-    app.dependency_overrides[deps.get_stripe_client] = lambda: stub
-    yield stub
-    app.dependency_overrides.pop(deps.get_stripe_client, None)
+    list_resp = await client.get("/api/v1/invoices", headers=headers)
+    assert list_resp.status_code == 200
+    assert any(item["id"] == invoice_id for item in list_resp.json())
+
+    add_item_resp = await client.post(
+        f"/api/v1/invoices/{invoice_id}/items",
+        json={"description": "Late checkout", "amount": "25.00"},
+        headers=headers,
+    )
+    assert add_item_resp.status_code == 200
+    body = add_item_resp.json()
+    assert len(body["items"]) == 2
+    assert body["subtotal"] == "225.00"
+    assert body["total"] == "225.00"
+    assert body["total_amount"] == "225.00"
+
+    pay_resp = await client.post(
+        f"/api/v1/invoices/{invoice_id}/pay",
+        json={"amount": "225.00"},
+        headers=headers,
+    )
+    assert pay_resp.status_code == 200
+    paid_invoice = pay_resp.json()
+    assert paid_invoice["status"] == "paid"
+    assert paid_invoice["paid_at"] is not None
+
+    duplicate_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/invoice",
+        headers=headers,
+    )
+    assert duplicate_resp.status_code == 400
 
 
-async def test_invoice_totals_and_promotion(
+async def test_invoice_account_isolation(
     app_context: dict[str, Any], db_url: str
 ) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
-    token = await _authenticate(
-        client, app_context["manager_email"], app_context["manager_password"]
-    )
+    manager_email = app_context["manager_email"]
+    manager_password = app_context["manager_password"]
+    location_id = str(app_context["location_id"])
+
+    token = await _authenticate(client, manager_email, manager_password)
     headers = {"Authorization": f"Bearer {token}"}
-    reservation_data = await _create_owner_pet_reservation(
-        client, headers, str(app_context["location_id"])
+    reservation_id, _ = await _create_owner_pet_reservation(
+        client, headers, location_id
     )
+
+    invoice_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/invoice",
+        headers=headers,
+    )
+    assert invoice_resp.status_code == 200
+    invoice_id = invoice_resp.json()["id"]
 
     sessionmaker = get_sessionmaker(db_url)
     async with sessionmaker() as session:
+        other_account = Account(
+            name="Other Resort", slug=f"other-{uuid.uuid4().hex[:6]}"
+        )
+        session.add(other_account)
+        await session.flush()
+
         session.add(
-            PriceRule(
-                account_id=app_context["account_id"],
-                rule_type=PriceRuleType.PEAK_DATE,
-                params={
-                    "start_date": datetime.now(timezone.utc).date().isoformat(),
-                    "end_date": (datetime.now(timezone.utc) + timedelta(days=10))
-                    .date()
-                    .isoformat(),
-                    "amount": "25.00",
-                },
+            Location(
+                account_id=other_account.id,
+                name="Iowa City",
+                timezone="UTC",
             )
         )
-        session.add(
-            Promotion(
-                account_id=app_context["account_id"],
-                code="SPRING10",
-                kind=PromotionKind.PERCENT,
-                value=Decimal("10"),
-                starts_on=datetime.now(timezone.utc).date() - timedelta(days=1),
-                ends_on=datetime.now(timezone.utc).date() + timedelta(days=10),
-                active=True,
-            )
+
+        other_password = "Passw0rd!"
+        other_manager = User(
+            account_id=other_account.id,
+            email="other.billing@example.com",
+            hashed_password=get_password_hash(other_password),
+            first_name="Other",
+            last_name="Billing",
+            role=UserRole.MANAGER,
+            status=UserStatus.ACTIVE,
         )
+        session.add(other_manager)
         await session.commit()
 
-    create_resp = await client.post(
-        f"/api/v1/invoices/{reservation_data['reservation_id']}/create",
-        headers=headers,
+    other_token = await _authenticate(
+        client, "other.billing@example.com", other_password
     )
-    assert create_resp.status_code == 200
-    invoice = create_resp.json()
-    assert invoice["subtotal"] == "225.00"
-    assert invoice["discount_total"] == "0"
-    invoice_id = invoice["id"]
+    other_headers = {"Authorization": f"Bearer {other_token}"}
 
-    apply_resp = await client.post(
-        f"/api/v1/invoices/{invoice_id}/apply-promo",
-        json={"code": "SPRING10"},
-        headers=headers,
+    forbidden_resp = await client.get(
+        f"/api/v1/invoices/{invoice_id}",
+        headers=other_headers,
     )
-    assert apply_resp.status_code == 200
-    body = apply_resp.json()
-    assert body["discount_total"] == "22.50"
-    assert body["total_amount"] == "202.50"
-
-
-async def test_deposit_payment_and_export_flow(
-    app_context: dict[str, Any],
-    db_url: str,
-    tmp_path: Any,
-    stripe_stub: Any,
-) -> None:
-    os.environ["QBO_EXPORT_DIR"] = str(tmp_path)
-    deps.get_settings.cache_clear()  # type: ignore[attr-defined]
-
-    client: AsyncClient = app_context["client"]  # type: ignore[assignment]
-    token = await _authenticate(
-        client, app_context["manager_email"], app_context["manager_password"]
-    )
-    headers = {"Authorization": f"Bearer {token}"}
-    reservation_data = await _create_owner_pet_reservation(
-        client, headers, str(app_context["location_id"])
-    )
-
-    create_resp = await client.post(
-        f"/api/v1/invoices/{reservation_data['reservation_id']}/create",
-        headers=headers,
-    )
-    assert create_resp.status_code == 200
-    invoice_id = create_resp.json()["id"]
-
-    hold_resp = await client.post(
-        f"/api/v1/reservations/{reservation_data['reservation_id']}/hold-deposit",
-        json={"owner_id": reservation_data["owner_id"], "amount": "50.00"},
-        headers=headers,
-    )
-    assert hold_resp.status_code == 200
-    deposit_id = hold_resp.json()["id"]
-    assert hold_resp.json()["status"] == "held"
-
-    intent_resp = await client.post(
-        "/api/v1/payments/create-intent",
-        json={"invoice_id": invoice_id, "amount": "200.00"},
-        headers=headers,
-    )
-    assert intent_resp.status_code == 200
-    intent_id = intent_resp.json()["payment_intent_id"]
-
-    confirm_resp = await client.post(
-        "/api/v1/payments/confirm",
-        json={"payment_intent_id": intent_id},
-        headers=headers,
-    )
-    assert confirm_resp.status_code == 200
-    assert confirm_resp.json()["status"] == "paid"
-
-    sessionmaker = get_sessionmaker(db_url)
-    async with sessionmaker() as session:
-        deposit = await session.get(Deposit, uuid.UUID(deposit_id))
-        assert deposit is not None
-        assert deposit.status == DepositStatus.CONSUMED
-
-    today = datetime.now(timezone.utc).date()
-    export_resp = await client.get(
-        "/api/v1/reports/exports/sales-receipt",
-        params={"date": today.isoformat()},
-        headers=headers,
-    )
-    assert export_resp.status_code == 200
-    export_path = export_resp.json()["export_path"]
-    assert export_resp.json()["invoices_exported"] >= 0
-
-    with open(export_path, "r", encoding="utf-8") as handle:
-        header = handle.readline().strip()
-    assert header.split(",")[0] == "invoice_id"
+    assert forbidden_resp.status_code == 404

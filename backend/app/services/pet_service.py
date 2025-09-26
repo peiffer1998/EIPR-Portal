@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from typing import Sequence
+from typing import Sequence, cast
 
 from sqlalchemy import select
 from sqlalchemy.sql import Select
@@ -171,7 +171,7 @@ async def update_pet(
     if color is not None:
         pet.color = color
     if date_of_birth is not None:
-        pet.date_of_birth = date_of_birth
+        pet.date_of_birth = cast(date, date_of_birth)  # type: ignore[assignment]
     if notes is not None:
         pet.notes = notes
 
