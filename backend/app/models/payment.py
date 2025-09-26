@@ -8,7 +8,17 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
@@ -42,6 +52,17 @@ class PaymentTransaction(TimestampMixin, Base):
 
     __tablename__ = "payment_transactions"
 
+    __table_args__ = (
+        Index(
+            "ux_payment_transactions_account_external",
+            "account_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     account_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
@@ -62,6 +83,7 @@ class PaymentTransaction(TimestampMixin, Base):
         Enum(PaymentTransactionStatus), nullable=False
     )
     failure_reason: Mapped[str | None] = mapped_column(Text())
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     invoice: Mapped["Invoice"] = relationship(
         "Invoice", back_populates="payment_transactions"

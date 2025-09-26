@@ -38,6 +38,10 @@ from . import (
     run_cards,
     service_catalog,
     storage,
+    timeclock,
+    tips,
+    commissions,
+    payroll,
     users,
     waitlist,
 )
@@ -91,6 +95,10 @@ router.include_router(
 )
 router.include_router(run_cards.router, tags=["run-cards"])
 # END OPS_P5 ROUTES
+router.include_router(timeclock.router, tags=["timeclock"])
+router.include_router(tips.router, tags=["tips"])
+router.include_router(commissions.router, tags=["commissions"])
+router.include_router(payroll.router, tags=["payroll"])
 router.include_router(grooming.router, prefix="/grooming", tags=["grooming"])
 router.include_router(store.router, tags=["store"])
 router.include_router(

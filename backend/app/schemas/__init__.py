@@ -160,7 +160,11 @@ from app.schemas.user import (
 from app.schemas.waitlist import (
     WaitlistEntryCreate,
     WaitlistEntryRead,
-    WaitlistStatusUpdate,
+    WaitlistEntryUpdate,
+    WaitlistListResponse,
+    WaitlistOfferRequest,
+    WaitlistOfferResponse,
+    WaitlistPromoteRequest,
 )
 
 __all__ = [
@@ -229,7 +233,11 @@ __all__ = [
     "ServicePackageUpdate",
     "WaitlistEntryCreate",
     "WaitlistEntryRead",
-    "WaitlistStatusUpdate",
+    "WaitlistEntryUpdate",
+    "WaitlistListResponse",
+    "WaitlistOfferRequest",
+    "WaitlistOfferResponse",
+    "WaitlistPromoteRequest",
     "LocationHourCreate",
     "LocationHourRead",
     "LocationHourUpdate",

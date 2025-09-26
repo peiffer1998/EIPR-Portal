@@ -45,7 +45,9 @@ async def reset_database(db_url: str) -> AsyncIterator[None]:
     """Drop and recreate the database schema for an isolated test."""
     os.environ["DATABASE_URL"] = db_url
     get_settings.cache_clear()
-    get_settings()
+    settings = get_settings()
+    settings.smtp_host = ""
+    settings.smtp_port = None
 
     await dispose_engine(db_url)
     engine = create_async_engine(db_url, future=True)
@@ -119,6 +121,7 @@ async def app_context(
             "manager_password": manager_password,
             "superadmin_email": superadmin.email,
             "superadmin_password": superadmin_password,
+            "sessionmaker": sessionmaker,
         }
 
     transport = ASGITransport(app=app)

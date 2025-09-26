@@ -27,6 +27,10 @@ def schedule_email(
     if not recipients_list:
         logger.debug("No recipients provided for email; skipping")
         return
+    settings = get_settings()
+    if not settings.smtp_host or not settings.smtp_port:
+        logger.debug("SMTP disabled; skipping email to %s", recipients_list)
+        return
     background_tasks.add_task(_send_email, recipients_list, subject, body)
 
 
@@ -89,6 +93,35 @@ def build_invoice_email(*, invoice_number: str, total: str) -> tuple[str, str]:
         "Thank you for your business!"
     )
     return subject, body
+
+
+def build_waitlist_offer_email(
+    *,
+    start_date: str,
+    end_date: str,
+    location_name: str,
+    ttl_minutes: int,
+    confirm_url: str,
+) -> tuple[str, str]:
+    subject = "Spot available at Eastern Iowa Pet Resort"
+    body = (
+        "Good news! A spot opened up for your reservation request.\n\n"
+        f"Dates: {start_date} to {end_date}\n"
+        f"Location: {location_name}\n\n"
+        f"Confirm within {ttl_minutes} minutes using the link below:\n{confirm_url}\n\n"
+        "If the link is not clickable, copy and paste it into your browser.\n\n"
+        "We look forward to seeing you soon!\n"
+    )
+    return subject, body
+
+
+def build_waitlist_offer_sms(
+    *, start_date: str, end_date: str, ttl_minutes: int, confirm_url: str
+) -> str:
+    return (
+        f"EIPR: Your spot is available for {start_date}-{end_date}. Confirm: {confirm_url}. "
+        f"Expires in {ttl_minutes} min. Reply STOP to opt out."
+    )
 
 
 def build_payment_receipt_email(*, invoice_number: str, amount: str) -> tuple[str, str]:

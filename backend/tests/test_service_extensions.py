@@ -1,7 +1,8 @@
 """Integration tests for extended services (catalog, packages, waitlists, documents)."""
+
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 import pytest
@@ -127,7 +128,9 @@ async def test_service_catalog_and_packages(app_context: dict[str, Any]) -> None
     assert package_update.json()["price"] == "300.00"
 
 
-async def test_waitlist_location_hours_and_documents(app_context: dict[str, Any]) -> None:
+async def test_waitlist_location_hours_and_documents(
+    app_context: dict[str, Any],
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -138,14 +141,33 @@ async def test_waitlist_location_hours_and_documents(app_context: dict[str, Any]
 
     owner_id, pet_id = await _create_owner_and_pet(client, headers, location_id)
 
-    # Create waitlist entry
-    waitlist_resp = await client.post(
-        "/api/v1/waitlist",
+    start_dt = datetime.combine(date.today(), time.min, tzinfo=UTC)
+    end_dt = start_dt + timedelta(days=1)
+    blocker_resp = await client.post(
+        "/api/v1/reservations",
         json={
             "pet_id": pet_id,
             "location_id": location_id,
             "reservation_type": "boarding",
-            "desired_date": date.today().isoformat(),
+            "start_at": start_dt.isoformat(),
+            "end_at": end_dt.isoformat(),
+            "base_rate": "75.00",
+            "status": "confirmed",
+        },
+        headers=headers,
+    )
+    assert blocker_resp.status_code == 201
+
+    # Create waitlist entry
+    waitlist_resp = await client.post(
+        "/api/v1/waitlist",
+        json={
+            "location_id": location_id,
+            "owner_id": owner_id,
+            "service_type": "boarding",
+            "start_date": date.today().isoformat(),
+            "end_date": date.today().isoformat(),
+            "pets": [{"pet_id": pet_id}],
             "notes": "Needs large kennel",
         },
         headers=headers,
@@ -153,14 +175,13 @@ async def test_waitlist_location_hours_and_documents(app_context: dict[str, Any]
     assert waitlist_resp.status_code == 201
     entry_id = waitlist_resp.json()["id"]
 
-    # Promote waitlist entry
-    status_resp = await client.patch(
-        f"/api/v1/waitlist/{entry_id}",
-        json={"status": "offered"},
+    waitlist_list = await client.get(
+        "/api/v1/waitlist",
+        params={"limit": 5},
         headers=headers,
     )
-    assert status_resp.status_code == 200
-    assert status_resp.json()["status"] == "offered"
+    assert waitlist_list.status_code == 200
+    assert any(entry["id"] == entry_id for entry in waitlist_list.json()["entries"])
 
     # Set location hours
     hour_resp = await client.put(
@@ -222,7 +243,9 @@ async def test_waitlist_location_hours_and_documents(app_context: dict[str, Any]
     assert any(doc["id"] == document_id for doc in docs_list.json())
 
     # Cleanup
-    delete_doc = await client.delete(f"/api/v1/documents/{document_id}", headers=headers)
+    delete_doc = await client.delete(
+        f"/api/v1/documents/{document_id}", headers=headers
+    )
     assert delete_doc.status_code == 204
 
     delete_closure = await client.delete(
@@ -231,5 +254,9 @@ async def test_waitlist_location_hours_and_documents(app_context: dict[str, Any]
     )
     assert delete_closure.status_code == 204
 
-    delete_waitlist = await client.delete(f"/api/v1/waitlist/{entry_id}", headers=headers)
-    assert delete_waitlist.status_code == 204
+    cancel_waitlist = await client.patch(
+        f"/api/v1/waitlist/{entry_id}",
+        json={"status": "canceled"},
+        headers=headers,
+    )
+    assert cancel_waitlist.status_code == 200

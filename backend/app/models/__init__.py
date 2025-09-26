@@ -5,6 +5,7 @@ from app.models.audit_event import AuditEvent
 from app.models.feeding_schedule import FeedingSchedule
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.location import Location
+from app.models.lodging import LodgingType
 from app.models.password_reset import PasswordResetToken
 from app.models.immunization import (
     ImmunizationRecord,
@@ -28,7 +29,8 @@ from app.models.reservation import Reservation, ReservationStatus, ReservationTy
 from app.models.staff_invitation import StaffInvitation, StaffInvitationStatus
 from app.models.service_catalog_item import ServiceCatalogItem, ServiceCatalogKind
 from app.models.service_package import ServicePackage
-from app.models.waitlist_entry import WaitlistEntry, WaitlistStatus
+from app.models.waitlist_entry import WaitlistEntry, WaitlistStatus, WaitlistServiceType
+from app.models.confirmation_token import ConfirmationToken, ConfirmationMethod
 from app.models.location_hours import LocationHour, LocationClosure
 from app.models.document import Document
 from app.models.user import User, UserRole, UserStatus
@@ -75,6 +77,16 @@ from app.models.store import (
     StoreCreditSource,
 )
 
+from app.models.payroll import (
+    PayrollPeriod,
+    PayRateHistory,
+    TimeClockPunch,
+    TipPolicy,
+    TipTransaction,
+    TipShare,
+    CommissionPayout,
+)
+
 __all__ = [
     "Account",
     "AuditEvent",
@@ -83,6 +95,7 @@ __all__ = [
     "InvoiceItem",
     "InvoiceStatus",
     "Location",
+    "LodgingType",
     "PasswordResetToken",
     "ImmunizationRecord",
     "ImmunizationStatus",
@@ -105,6 +118,7 @@ __all__ = [
     "ServicePackage",
     "WaitlistEntry",
     "WaitlistStatus",
+    "WaitlistServiceType",
     "LocationHour",
     "LocationClosure",
     "Document",
@@ -157,4 +171,13 @@ __all__ = [
     "StoreCreditSource",
     "CreditApplication",
     "CreditApplicationType",
+    "PayrollPeriod",
+    "PayRateHistory",
+    "TimeClockPunch",
+    "TipPolicy",
+    "TipTransaction",
+    "TipShare",
+    "CommissionPayout",
+    "ConfirmationToken",
+    "ConfirmationMethod",
 ]

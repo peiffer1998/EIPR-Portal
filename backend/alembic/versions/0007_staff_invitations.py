@@ -13,14 +13,32 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'staffinvitationstatus'
+            ) THEN
+                CREATE TYPE staffinvitationstatus AS ENUM (
+                    'pending',
+                    'accepted',
+                    'revoked',
+                    'expired'
+                );
+            END IF;
+        END$$;
+        """
+    )
+
     invitation_status_enum = sa.Enum(
         "pending",
         "accepted",
         "revoked",
         "expired",
         name="staffinvitationstatus",
+        create_type=False,
     )
-    invitation_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "staff_invitations",
@@ -81,4 +99,15 @@ def downgrade() -> None:
     op.drop_index("ix_staff_invitations_email", table_name="staff_invitations")
     op.drop_index("ix_staff_invitations_account_id", table_name="staff_invitations")
     op.drop_table("staff_invitations")
-    sa.Enum(name="staffinvitationstatus").drop(op.get_bind(), checkfirst=False)
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM pg_type WHERE typname = 'staffinvitationstatus'
+            ) THEN
+                DROP TYPE staffinvitationstatus;
+            END IF;
+        END$$;
+        """
+    )

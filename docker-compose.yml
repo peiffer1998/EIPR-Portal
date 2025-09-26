@@ -73,7 +73,7 @@ services:
       - "9000:9000"
       - "9001:9001"
   createbuckets:
-    image: minio/mc:RELEASE.2024-08-20T16-00-19Z
+    image: minio/mc:latest
     depends_on:
       - minio
     entrypoint: ["/bin/sh", "-c"]

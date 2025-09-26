@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -31,6 +31,8 @@ class ReservationStatus(str, enum.Enum):
 
     REQUESTED = "requested"
     ACCEPTED = "accepted"
+    PENDING_CONFIRMATION = "pending_confirmation"
+    OFFERED_FROM_WAITLIST = "offered_from_waitlist"
     CONFIRMED = "confirmed"
     CHECKED_IN = "checked_in"
     CHECKED_OUT = "checked_out"
@@ -51,6 +53,17 @@ class Reservation(TimestampMixin, Base):
     """Represents a booked service for a pet."""
 
     __tablename__ = "reservations"
+
+    __table_args__ = (
+        Index(
+            "ux_reservations_account_external",
+            "account_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, unique=True
@@ -79,6 +92,7 @@ class Reservation(TimestampMixin, Base):
     kennel_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
     check_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     check_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     account: Mapped["Account"] = relationship("Account")
     location: Mapped["Location"] = relationship(

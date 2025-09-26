@@ -8,7 +8,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Numeric,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -36,6 +45,14 @@ class Invoice(TimestampMixin, Base):
     __tablename__ = "invoices"
     __table_args__ = (
         UniqueConstraint("reservation_id", name="uq_invoice_reservation"),
+        Index(
+            "ux_invoices_account_external",
+            "account_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -69,6 +86,7 @@ class Invoice(TimestampMixin, Base):
         Numeric(10, 2), default=Decimal("0"), nullable=False
     )
     paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     reservation: Mapped["Reservation"] = relationship(
         "Reservation", back_populates="invoice"

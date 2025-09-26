@@ -24,10 +24,21 @@ from app.models.reservation import Reservation, ReservationStatus, ReservationTy
 _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
     ReservationStatus.REQUESTED: {
         ReservationStatus.ACCEPTED,
+        ReservationStatus.PENDING_CONFIRMATION,
         ReservationStatus.CONFIRMED,
         ReservationStatus.CANCELED,
     },
     ReservationStatus.ACCEPTED: {
+        ReservationStatus.PENDING_CONFIRMATION,
+        ReservationStatus.CONFIRMED,
+        ReservationStatus.CANCELED,
+    },
+    ReservationStatus.PENDING_CONFIRMATION: {
+        ReservationStatus.OFFERED_FROM_WAITLIST,
+        ReservationStatus.CONFIRMED,
+        ReservationStatus.CANCELED,
+    },
+    ReservationStatus.OFFERED_FROM_WAITLIST: {
         ReservationStatus.CONFIRMED,
         ReservationStatus.CANCELED,
     },
@@ -43,6 +54,8 @@ _ALLOWED_STATUS_TRANSITIONS: dict[ReservationStatus, set[ReservationStatus]] = {
 _ACTIVE_RESERVATION_STATUSES = {
     ReservationStatus.REQUESTED,
     ReservationStatus.ACCEPTED,
+    ReservationStatus.PENDING_CONFIRMATION,
+    ReservationStatus.OFFERED_FROM_WAITLIST,
     ReservationStatus.CONFIRMED,
     ReservationStatus.CHECKED_IN,
 }
@@ -442,3 +455,32 @@ async def get_daily_availability(
         current += timedelta(days=1)
 
     return days
+
+
+async def get_remaining_capacity(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    location_id: uuid.UUID,
+    reservation_type: ReservationType,
+    start_date: date,
+    end_date: date,
+) -> tuple[list[DailyAvailabilityRecord], int | None]:
+    """Return per-day availability records and the minimum remaining capacity."""
+    records = await get_daily_availability(
+        session,
+        account_id=account_id,
+        location_id=location_id,
+        reservation_type=reservation_type,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    minimum: int | None = None
+    for record in records:
+        if record.available is None:
+            minimum = None
+            break
+        minimum = (
+            record.available if minimum is None else min(minimum, record.available)
+        )
+    return records, minimum

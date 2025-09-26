@@ -37,6 +37,11 @@ from . import (
     pet_service,
     reservation_service,
     user_service,
+    timeclock_service,
+    tip_service,
+    commission_service,
+    payroll_service,
+    confirmation_service,
 )
 
 __all__ = [
@@ -76,4 +81,9 @@ __all__ = [
     "pet_service",
     "reservation_service",
     "user_service",
+    "timeclock_service",
+    "tip_service",
+    "commission_service",
+    "payroll_service",
+    "confirmation_service",
 ]

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     )
     payments_webhook_verify: bool = Field(default=True, alias="PAYMENTS_WEBHOOK_VERIFY")
     portal_account_slug: str | None = Field(default=None, alias="PORTAL_ACCOUNT_SLUG")
+    portal_confirmation_success_url: str = Field(
+        "/portal/confirmation-success", alias="PORTAL_CONFIRMATION_SUCCESS_URL"
+    )
+    portal_confirmation_expired_url: str = Field(
+        "/portal/confirmation-expired", alias="PORTAL_CONFIRMATION_EXPIRED_URL"
+    )
 
     twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
     twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")

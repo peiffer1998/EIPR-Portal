@@ -6,7 +6,7 @@ import enum
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Enum, ForeignKey, String
+from sqlalchemy import Date, Enum, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -35,6 +35,16 @@ class Pet(TimestampMixin, Base):
 
     __tablename__ = "pets"
 
+    __table_args__ = (
+        Index(
+            "ux_pets_external_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, unique=True
     )
@@ -50,6 +60,7 @@ class Pet(TimestampMixin, Base):
     color: Mapped[str | None] = mapped_column(String(120))
     date_of_birth: Mapped[Date | None] = mapped_column(Date())
     notes: Mapped[str | None] = mapped_column(String(1024))
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     owner: Mapped["OwnerProfile"] = relationship("OwnerProfile", back_populates="pets")
     home_location: Mapped["Location | None"] = relationship(

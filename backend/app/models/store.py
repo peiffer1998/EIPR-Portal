@@ -15,9 +15,11 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Numeric,
     String,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -93,6 +95,17 @@ class PackageCredit(Base):
 
     __tablename__ = "package_credits"
 
+    __table_args__ = (
+        Index(
+            "ux_package_credits_account_external",
+            "account_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, unique=True
     )
@@ -122,6 +135,7 @@ class PackageCredit(Base):
         default=lambda: datetime.now(UTC),
         server_default=func.now(),
     )
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     package_type: Mapped[PackageType] = relationship(
         "PackageType", back_populates="credits"

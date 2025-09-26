@@ -5,11 +5,13 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.responses import RedirectResponse
 
 from app.api import deps
+from app.core.config import get_settings
 from app.models.user import User, UserRole
 from app.schemas.invoice import InvoiceRead
 from app.schemas.reservation import (
@@ -24,9 +26,16 @@ from app.schemas.scheduling import (
     AvailabilityRequest,
     AvailabilityResponse,
 )
-from app.services import billing_service, notification_service, reservation_service
+from app.services import (
+    billing_service,
+    notification_service,
+    reservation_service,
+    waitlist_service,
+)
 
 router = APIRouter()
+
+settings = get_settings()
 
 
 def _assert_staff_authority(user: User) -> None:
@@ -245,6 +254,66 @@ async def generate_invoice(
         ) from exc
     notification_service.notify_invoice_available(invoice, background_tasks)
     return InvoiceRead.model_validate(invoice)
+
+
+@router.post(
+    "/{reservation_id}/confirm",
+    response_model=ReservationRead,
+    summary="Confirm reservation by token",
+)
+async def confirm_reservation_by_token(
+    reservation_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    token: str = Query(..., min_length=6),
+) -> ReservationRead:
+    try:
+        (
+            reservation,
+            _entry,
+            _token,
+        ) = await waitlist_service.confirm_reservation_by_token(
+            session,
+            token_value=token,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if reservation.id != reservation_id:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Confirmation token does not match reservation",
+        )
+    return ReservationRead.model_validate(reservation)
+
+
+@router.get(
+    "/confirm/{token}",
+    status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+    include_in_schema=False,
+)
+async def confirm_reservation_redirect(
+    token: str,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+) -> RedirectResponse:
+    success_url = (
+        settings.portal_confirmation_success_url or "/portal/confirmation-success"
+    )
+    expired_url = (
+        settings.portal_confirmation_expired_url or "/portal/confirmation-expired"
+    )
+    try:
+        await waitlist_service.confirm_reservation_by_token(
+            session,
+            token_value=token,
+        )
+    except ValueError as exc:
+        message = str(exc).lower()
+        target = expired_url if "expired" in message else expired_url
+        return RedirectResponse(
+            url=target, status_code=status.HTTP_307_TEMPORARY_REDIRECT
+        )
+    return RedirectResponse(
+        url=success_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT
+    )
 
 
 @router.delete(

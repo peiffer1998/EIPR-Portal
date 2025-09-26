@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, ForeignKey, Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -21,6 +21,16 @@ class OwnerProfile(TimestampMixin, Base):
 
     __tablename__ = "owner_profiles"
 
+    __table_args__ = (
+        Index(
+            "ux_owner_profiles_external_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("external_id IS NOT NULL"),
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, unique=True
     )
@@ -29,6 +39,7 @@ class OwnerProfile(TimestampMixin, Base):
     )
     preferred_contact_method: Mapped[str | None] = mapped_column(String(32))
     notes: Mapped[str | None] = mapped_column(String(1024))
+    external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sms_opt_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
