@@ -23,7 +23,12 @@ _ALLOWED_ORIGINS = [origin for origin in settings.cors_allowlist if origin]
 if not _ALLOWED_ORIGINS:
     _ALLOWED_ORIGINS = [origin for origin in settings.cors_allow_origins if origin]
 if not _ALLOWED_ORIGINS:
-    _ALLOWED_ORIGINS = ["http://localhost:5173"]
+    _ALLOWED_ORIGINS = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+    ]
 
 
 @asynccontextmanager
