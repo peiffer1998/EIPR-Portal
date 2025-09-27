@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from secure import Secure
 from asgi_correlation_id import CorrelationIdMiddleware
 from fastapi_limiter import FastAPILimiter
+import redis.asyncio as redis  # type: ignore[import-untyped]
 
 from app.api import api_router
 from app.core.config import get_settings
@@ -28,8 +29,10 @@ if not _ALLOWED_ORIGINS:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     redis_url = settings.redis_url or "redis://redis:6379/0"
+    redis_pool = None
     try:
-        await FastAPILimiter.init(redis_url)
+        redis_pool = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
+        await FastAPILimiter.init(redis_pool)
         setattr(FastAPILimiter, "default_limits", [settings.rate_limit_default])
     except Exception:  # pragma: no cover - limiter startup is best effort
         logger.exception("Failed to initialize rate limiter")
@@ -44,6 +47,12 @@ async def lifespan(_: FastAPI):
             await FastAPILimiter.close()
         except Exception:  # pragma: no cover - limiter shutdown
             logger.exception("Failed to close rate limiter")
+        finally:
+            if redis_pool is not None:
+                try:
+                    await redis_pool.aclose()
+                except Exception:
+                    logger.exception("Failed to close redis pool")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

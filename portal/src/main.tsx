@@ -7,6 +7,16 @@ import App from './App';
 import './index.css';
 import './theme/theme.css';
 import './a11y/focus.css';
+import { startFlushLoop, startWebVitals } from './telemetry/rum';
+import RouteMetrics from './telemetry/RouteMetrics';
+import BoardingCheckIn from './kiosk/pages/BoardingCheckIn';
+import BoardingCheckOut from './kiosk/pages/BoardingCheckOut';
+import DaycareCheckIn from './kiosk/pages/DaycareCheckIn';
+import DaycareCheckOut from './kiosk/pages/DaycareCheckOut';
+import GroomingLane from './kiosk/pages/GroomingLane';
+import KioskHome from './kiosk/pages/Home';
+import KioskShell from './kiosk/pages/Shell';
+import QuickPrint from './kiosk/pages/QuickPrint';
 import ErrorBoundary from './ui/ErrorBoundary';
 import ToastHost from './ui/Toast';
 import DebugPanel from './telemetry/DebugPanel';
@@ -61,6 +71,7 @@ const CommsCampaigns = lazy(() => import('./staff/pages/Comms/Campaigns'));
 const WaitlistPage = lazy(() => import('./staff/pages/Waitlist'));
 const PrecheckHome = lazy(() => import('./staff/pages/Precheck'));
 const TimeClock = lazy(() => import('./staff/pages/Staff/TimeClock'));
+const PricingSandbox = lazy(() => import('./staff/pages/Tools/PricingSandbox'));
 const Tips = lazy(() => import('./staff/pages/Staff/Tips'));
 const Commissions = lazy(() => import('./staff/pages/Staff/Commissions'));
 const Payroll = lazy(() => import('./staff/pages/Staff/Payroll'));
@@ -86,6 +97,7 @@ const AdminPackages = lazy(() => import('./staff/pages/Admin/Packages'));
 const AdminHours = lazy(() => import('./staff/pages/Admin/Hours'));
 const AdminClosures = lazy(() => import('./staff/pages/Admin/Closures'));
 const AdminPricing = lazy(() => import('./staff/pages/Admin/Pricing'));
+const AdminPerf = lazy(() => import('./staff/pages/Admin/Perf'));
 const AdminTax = lazy(() => import('./staff/pages/Admin/Tax'));
 const AdminIntegrations = lazy(() => import('./staff/pages/Admin/Integrations'));
 const AdminBranding = lazy(() => import('./staff/pages/Admin/Branding'));
@@ -101,7 +113,20 @@ const PrintGroomTicket = lazy(() => import('./staff/pages/Print/GroomTicket'));
 const PrintFeeding = lazy(() => import('./staff/pages/Print/FeedingSheet'));
 const PrintMeds = lazy(() => import('./staff/pages/Print/MedsSheet'));
 const PrintReceipt = lazy(() => import('./staff/pages/Print/Receipt'));
-
+const OwnerGuard = lazy(() => import('./owner/components/OwnerGuard'));
+const OwnerShell = lazy(() => import('./owner/components/OwnerShell'));
+const OwnerDashboard = lazy(() => import('./owner/pages/Dashboard'));
+const OwnerPets = lazy(() => import('./owner/pages/Pets'));
+const OwnerPetDetail = lazy(() => import('./owner/pages/Pets/Detail'));
+const OwnerReservations = lazy(() => import('./owner/pages/Reservations'));
+const OwnerReservationDetail = lazy(() => import('./owner/pages/Reservations/Detail'));
+const OwnerGrooming = lazy(() => import('./owner/pages/Grooming'));
+const OwnerPackages = lazy(() => import('./owner/pages/Packages'));
+const OwnerCredits = lazy(() => import('./owner/pages/Credits'));
+const OwnerInvoices = lazy(() => import('./owner/pages/Invoices'));
+const OwnerReportCards = lazy(() => import('./owner/pages/ReportCards'));
+const OwnerDocuments = lazy(() => import('./owner/pages/Documents'));
+const OwnerPreferences = lazy(() => import('./owner/pages/Preferences'));
 
 const root = document.getElementById('root');
 
@@ -115,6 +140,7 @@ createRoot(root).render(
           <StaffAuthProvider>
             <BrowserRouter>
               <Suspense fallback={<Loading text="Loading view…" />}>
+                <RouteMetrics />
                 <Routes>
               <Route path="/login" element={<LoginRegister />} />
               <Route
@@ -140,6 +166,32 @@ createRoot(root).render(
                 <Route path="uploads" element={<Uploads />} />
               </Route>
 
+              <Route
+                path="/owner"
+                element={(
+                  <ProtectedRoute>
+                    <OwnerGuard>
+                      <OwnerShell />
+                    </OwnerGuard>
+                  </ProtectedRoute>
+                )}
+              >
+                <Route index element={<OwnerDashboard />} />
+                <Route path="pets" element={<OwnerPets />} />
+                <Route path="pets/:petId" element={<OwnerPetDetail />} />
+                <Route path="reservations" element={<OwnerReservations />} />
+                <Route
+                  path="reservations/:reservationId"
+                  element={<OwnerReservationDetail />}
+                />
+                <Route path="grooming" element={<OwnerGrooming />} />
+                <Route path="packages" element={<OwnerPackages />} />
+                <Route path="credits" element={<OwnerCredits />} />
+                <Route path="invoices" element={<OwnerInvoices />} />
+                <Route path="report-cards" element={<OwnerReportCards />} />
+                <Route path="documents" element={<OwnerDocuments />} />
+                <Route path="preferences" element={<OwnerPreferences />} />
+              </Route>
               <Route path="/staff/login" element={<StaffLogin />} />
               <Route
                 path="/staff"
@@ -210,6 +262,10 @@ createRoot(root).render(
 
                 <Route path="design/system" element={<DesignSystem />} />
 
+                <Route path="tools">
+                  <Route path="pricing" element={<PricingSandbox />} />
+                </Route>
+
                 <Route path="reports" element={<ReportsHub />} />
                 <Route path="reports/availability" element={<ReportsAvailability />} />
 
@@ -244,6 +300,7 @@ createRoot(root).render(
                   <Route path="services" element={<AdminServices />} />
                   <Route path="packages" element={<AdminPackages />} />
                   <Route path="pricing" element={<AdminPricing />} />
+                  <Route path="perf" element={<AdminPerf />} />
                   <Route path="tax" element={<AdminTax />} />
                   <Route path="integrations" element={<AdminIntegrations />} />
                   <Route path="branding" element={<AdminBranding />} />
@@ -252,6 +309,15 @@ createRoot(root).render(
                   <Route path="account-codes" element={<AdminAccountCodes />} />
                 </Route>
 
+                <Route path="kiosk" element={<KioskShell />}>
+                  <Route index element={<KioskHome />} />
+                  <Route path="boarding/checkin" element={<BoardingCheckIn />} />
+                  <Route path="boarding/checkout" element={<BoardingCheckOut />} />
+                  <Route path="daycare/checkin" element={<DaycareCheckIn />} />
+                  <Route path="daycare/checkout" element={<DaycareCheckOut />} />
+                  <Route path="grooming" element={<GroomingLane />} />
+                  <Route path="print" element={<QuickPrint />} />
+                </Route>
                 <Route path="print">
                   <Route path="run-card/:reservationId" element={<PrintRunCard />} />
                   <Route path="groom-ticket/:appointmentId" element={<PrintGroomTicket />} />
@@ -271,10 +337,13 @@ createRoot(root).render(
             <DebugPanel />
           </StaffAuthProvider>
         </ErrorBoundary>
-      </AuthProvider>
+  </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
+
+void startWebVitals();
+startFlushLoop();
 
 window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === '`') {

@@ -27,6 +27,9 @@ api.interceptors.request.use((config) => {
     config.headers = config.headers ?? {};
     config.headers['Authorization'] = `Bearer ${token}`;
   }
+  const start =
+    typeof performance !== 'undefined' ? performance.now() : Date.now();
+  (config as any).__start = start;
   return config;
 });
 
@@ -39,6 +42,23 @@ api.interceptors.response.use(
     if (reqId) {
       (res as any).requestId = reqId;
     }
+
+    const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const start = (res.config as any)?.__start as number | undefined;
+    const duration = start ? Math.max(0, Math.round(end - start)) : undefined;
+
+    emit({
+      ts: Date.now(),
+      type: 'http.timing',
+      requestId: reqId,
+      message: String(res.config?.url ?? ''),
+      meta: {
+        url: res.config?.url,
+        method: res.config?.method,
+        code: res.status,
+        ms: duration,
+      },
+    });
     return res;
   },
   (error) => {
@@ -52,6 +72,26 @@ api.interceptors.response.use(
     const status = response?.status;
 
     if (reqId) (error as any).requestId = reqId;
+
+    try {
+      const end = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const start = (error?.config as any)?.__start as number | undefined;
+      const duration = start ? Math.max(0, Math.round(end - start)) : undefined;
+      emit({
+        ts: Date.now(),
+        type: 'http.timing',
+        requestId: reqId,
+        message: String(error?.config?.url ?? ''),
+        meta: {
+          url: error?.config?.url,
+          method: error?.config?.method,
+          code: status ?? 0,
+          ms: duration,
+        },
+      });
+    } catch (timingError) {
+      console.warn('http timing capture failed', timingError);
+    }
 
     emit({
       ts: Date.now(),

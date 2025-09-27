@@ -1,0 +1,70 @@
+import { useEffect, useState } from 'react';
+
+import { checkInReservation, searchReservations } from '../lib/fetchers';
+
+type DaycareReservation = Record<string, any> & {
+  id: string;
+  pet?: { name?: string } | null;
+  owner?: { first_name?: string; last_name?: string } | null;
+};
+
+export default function DaycareCheckIn() {
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reservations, setReservations] = useState<DaycareReservation[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await searchReservations({
+          date: today,
+          reservation_type: 'DAYCARE',
+          status: 'REQUESTED',
+          limit: 200,
+        });
+        setReservations(data as DaycareReservation[]);
+      } catch {
+        setReservations([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [today]);
+
+  const handleCheckIn = async (id: string) => {
+    try {
+      await checkInReservation(id);
+      setReservations((prev) => prev.filter((item) => item.id !== id));
+    } catch {
+      window.alert('Unable to check in reservation');
+    }
+  };
+
+  return (
+    <div className="grid gap-3">
+      <div className="text-2xl font-semibold">Daycare Check-In — {today}</div>
+      {loading ? <div className="text-slate-600">Loading…</div> : null}
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-2">
+        {reservations.length === 0 && !loading ? (
+          <div className="text-slate-600">No pending daycare arrivals.</div>
+        ) : null}
+        {reservations.map((reservation) => (
+          <button
+            key={reservation.id}
+            type="button"
+            className="rounded-xl px-4 py-6 text-xl bg-white border hover:bg-slate-50 text-left"
+            onClick={() => handleCheckIn(reservation.id)}
+          >
+            {reservation.pet?.name ?? reservation.id}
+            <div className="text-sm text-slate-600">
+              {reservation.owner?.first_name ?? ''} {reservation.owner?.last_name ?? ''}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
