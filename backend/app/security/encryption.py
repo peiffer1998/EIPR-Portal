@@ -117,13 +117,13 @@ class EncryptedStr(TypeDecorator):
         super().__init__()
         self.length = length
 
-    def load_dialect_impl(self, dialect):  # type: ignore[override]
+    def load_dialect_impl(self, dialect):
         if self.length is not None:
             return dialect.type_descriptor(String(self.length))
         return dialect.type_descriptor(String())
 
-    def process_bind_param(self, value: Optional[str], dialect):  # type: ignore[override]
+    def process_bind_param(self, value: Optional[str], dialect):
         return encrypt_str(value)
 
-    def process_result_value(self, value: Optional[str], dialect):  # type: ignore[override]
+    def process_result_value(self, value: Optional[str], dialect):
         return decrypt_str(value)

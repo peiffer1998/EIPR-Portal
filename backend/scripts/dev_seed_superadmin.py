@@ -6,7 +6,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.db.session import async_session_maker
+from app.db.session import get_sessionmaker
 from app.models.user import User, UserRole, UserStatus
 from app.core.security import get_password_hash
 
@@ -15,7 +15,8 @@ PASSWORD = os.environ.get("DEV_SUPERADMIN_PASS", "admin123")
 
 
 async def main() -> None:
-    async with async_session_maker() as session:
+    session_factory = get_sessionmaker()
+    async with session_factory() as session:
         result = await session.execute(select(User).where(User.email == EMAIL))
         user = result.scalars().first()
         if user is None:

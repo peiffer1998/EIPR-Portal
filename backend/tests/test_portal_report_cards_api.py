@@ -49,7 +49,9 @@ async def test_owner_can_view_report_cards(
         manager_row = await session.execute(
             User.__table__.select().where(User.email == manager_email)
         )
-        manager_id = manager_row.first()[0]
+        manager_result = manager_row.first()
+        assert manager_result is not None
+        manager_id = manager_result[0]
 
         owner_user = User(
             account_id=account_id,

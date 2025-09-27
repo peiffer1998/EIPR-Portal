@@ -30,7 +30,7 @@ async def lifespan(_: FastAPI):
     redis_url = settings.redis_url or "redis://redis:6379/0"
     try:
         await FastAPILimiter.init(redis_url)
-        FastAPILimiter.default_limits = [settings.rate_limit_default]
+        setattr(FastAPILimiter, "default_limits", [settings.rate_limit_default])
     except Exception:  # pragma: no cover - limiter startup is best effort
         logger.exception("Failed to initialize rate limiter")
     try:

@@ -82,11 +82,11 @@ async def test_email_render_and_send(reset_database, db_url: str) -> None:
                 .where(OwnerProfile.id == owner_id)
             )
         ).scalar_one()
-        template = await session.get(EmailTemplate, template_id)
-        assert template is not None
+        template_obj = await session.get(EmailTemplate, template_id)
+        assert template_obj is not None
 
         subject, html = render_template(
-            template,
+            template_obj,
             {"owner": {"first_name": owner.user.first_name}, "pet": {"name": "Buddy"}},
         )
         assert "Welcome" in subject

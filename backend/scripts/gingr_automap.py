@@ -177,7 +177,7 @@ def score_table(table_name: str, tokens: Iterable[str]) -> float:
 def best_table(tables: list[dict[str, Any]], target: str) -> Optional[dict[str, Any]]:
     candidates = TARGETS.get(target, [])
     best: Optional[dict[str, Any]] = None
-    best_score = -1
+    best_score = -1.0
     for table in tables:
         score = score_table(table["table_name"], candidates)
         # add heuristic weight for row count

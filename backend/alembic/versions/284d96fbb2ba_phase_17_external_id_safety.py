@@ -1,5 +1,7 @@
 """phase-17 external_id safety"""
 
+from typing import Any, Dict
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -10,7 +12,7 @@ branch_labels = None
 depends_on = None
 
 
-INDEX_KWARGS = {
+INDEX_KWARGS: Dict[str, Any] = {
     "postgresql_where": sa.text("external_id IS NOT NULL"),
     "sqlite_where": sa.text("external_id IS NOT NULL"),
 }

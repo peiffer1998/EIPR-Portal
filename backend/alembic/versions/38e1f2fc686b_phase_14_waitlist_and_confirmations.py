@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.sql.sqltypes import Enum as SqlEnumType
 
 # revision identifiers, used by Alembic.
 revision = "38e1f2fc686b"
@@ -40,48 +43,66 @@ def upgrade() -> None:
         )
         bind.execute(sa.text("CREATE TYPE confirmationmethod AS ENUM ('email','sms')"))
 
-        waitlist_status_enum = postgresql.ENUM(
-            "open",
-            "offered",
-            "converted",
-            "canceled",
-            "expired",
-            name="waitliststatus",
-            create_type=False,
+        waitlist_status_enum = cast(
+            SqlEnumType,
+            postgresql.ENUM(
+                "open",
+                "offered",
+                "converted",
+                "canceled",
+                "expired",
+                name="waitliststatus",
+                create_type=False,
+            ),
         )
-        waitlist_service_enum = postgresql.ENUM(
-            "boarding",
-            "daycare",
-            "grooming",
-            name="waitlistservicetype",
-            create_type=False,
+        waitlist_service_enum = cast(
+            SqlEnumType,
+            postgresql.ENUM(
+                "boarding",
+                "daycare",
+                "grooming",
+                name="waitlistservicetype",
+                create_type=False,
+            ),
         )
-        confirmation_method_enum = postgresql.ENUM(
-            "email",
-            "sms",
-            name="confirmationmethod",
-            create_type=False,
+        confirmation_method_enum = cast(
+            SqlEnumType,
+            postgresql.ENUM(
+                "email",
+                "sms",
+                name="confirmationmethod",
+                create_type=False,
+            ),
         )
     else:
         op.execute("DROP TABLE IF EXISTS waitlist_entries")
-        waitlist_status_enum = sa.Enum(
-            "open",
-            "offered",
-            "converted",
-            "canceled",
-            "expired",
-            name="waitliststatus",
+        waitlist_status_enum = cast(
+            SqlEnumType,
+            sa.Enum(
+                "open",
+                "offered",
+                "converted",
+                "canceled",
+                "expired",
+                name="waitliststatus",
+            ),
         )
-        waitlist_service_enum = sa.Enum(
-            "boarding",
-            "daycare",
-            "grooming",
-            name="waitlistservicetype",
+        waitlist_service_enum = cast(
+            SqlEnumType,
+            sa.Enum(
+                "boarding",
+                "daycare",
+                "grooming",
+                name="waitlistservicetype",
+            ),
         )
-        confirmation_method_enum = sa.Enum(
-            "email",
-            "sms",
-            name="confirmationmethod",
+        confirmation_method_enum = cast(
+            SqlEnumType,
+            sa.Enum(
+                "email",
+                "sms",
+                name="confirmationmethod",
+            ),
         )
 
     json_type = (
@@ -269,9 +290,9 @@ def downgrade() -> None:
     op.drop_table("lodging_types")
 
     if dialect == "postgresql":
-        confirmation_method_enum = sa.Enum(name="confirmationmethod")
-        waitlist_service_enum = sa.Enum(name="waitlistservicetype")
-        waitlist_status_enum = sa.Enum(name="waitliststatus")
+        confirmation_method_enum = cast(SqlEnumType, sa.Enum(name="confirmationmethod"))
+        waitlist_service_enum = cast(SqlEnumType, sa.Enum(name="waitlistservicetype"))
+        waitlist_status_enum = cast(SqlEnumType, sa.Enum(name="waitliststatus"))
         confirmation_method_enum.drop(bind, checkfirst=True)
         waitlist_service_enum.drop(bind, checkfirst=True)
         waitlist_status_enum.drop(bind, checkfirst=True)
@@ -305,17 +326,21 @@ def downgrade() -> None:
             "UPDATE reservations SET status = 'confirmed' WHERE status IN ('pending_confirmation','offered_from_waitlist')"
         )
 
-    legacy_waitlist_status = sa.Enum(
-        "pending",
-        "offered",
-        "confirmed",
-        "canceled",
-        name="waitliststatus",
-        create_type=False,
+    legacy_waitlist_status = cast(
+        SqlEnumType,
+        sa.Enum(
+            "pending",
+            "offered",
+            "confirmed",
+            "canceled",
+            name="waitliststatus",
+            create_type=False,
+        ),
     )
     if dialect == "postgresql":
-        legacy_waitlist_status.create(bind, checkfirst=True)
-        legacy_waitlist_status.create_type = False
+        legacy_pg_enum = cast(postgresql.ENUM, legacy_waitlist_status)
+        legacy_pg_enum.create(bind, checkfirst=True)
+        legacy_pg_enum.create_type = False
 
     op.create_table(
         "waitlist_entries",

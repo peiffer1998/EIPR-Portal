@@ -22,7 +22,8 @@ async def _fetch_events(db_url: str, event_type: str) -> list[AuditEvent]:
         result = await session.execute(
             select(AuditEvent).where(AuditEvent.event_type == event_type)
         )
-        return result.scalars().all()
+        events = result.scalars().all()
+        return list(events)
 
 
 async def _authenticate(client: AsyncClient, email: str, password: str) -> str:

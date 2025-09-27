@@ -104,6 +104,6 @@ class PaymentEvent(Base):
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
-        server_default=func.now(),  # type: ignore[arg-type]
+        server_default=func.now(),
     )
     raw: Mapped[dict[str, Any]] = mapped_column(JSONB_TYPE, nullable=False)

@@ -1,13 +1,17 @@
 """Import Gingr data from MySQL into the EIPR Postgres database."""
 
+# ruff: noqa: E402  # allow path/bootstrap tweaks before app imports
+
 from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import logging
 import os
 import re
 import secrets
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -18,7 +22,17 @@ from typing import Any, Dict, Iterable, Optional
 import pymysql
 import yaml
 from sqlalchemy import create_engine, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
+
+_allowlist = os.environ.get("CORS_ALLOWLIST")
+if _allowlist and not _allowlist.strip().startswith("["):
+    cleaned = [origin.strip() for origin in _allowlist.split(",") if origin.strip()]
+    os.environ["CORS_ALLOWLIST"] = json.dumps(cleaned)
 
 from app.core.security import get_password_hash
 from app.models import Account, Location
@@ -80,6 +94,34 @@ def configure_logging(log_path: Path) -> None:
     console = logging.StreamHandler()
     console.setFormatter(formatter)
     LOGGER.addHandler(console)
+
+
+def resolve_sync_database_url() -> Optional[str]:
+    """Return a synchronous SQLAlchemy URL, falling back to DATABASE_URL when needed."""
+
+    sync_url = os.environ.get("SYNC_DATABASE_URL")
+    if sync_url:
+        return sync_url
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        return None
+
+    try:
+        url = make_url(database_url)
+    except Exception:  # pragma: no cover - defensive parsing
+        LOGGER.warning("DATABASE_URL was set but could not be parsed; using raw value")
+        return database_url
+
+    driver = url.drivername
+    if driver.endswith("+asyncpg"):
+        driver = driver[: -len("+asyncpg")] + "+psycopg"
+    elif driver.endswith("+psycopg_async"):
+        driver = driver[: -len("+psycopg_async")] + "+psycopg"
+
+    url = url.set(drivername=driver)
+    LOGGER.info("Resolved sync database URL from DATABASE_URL driver=%s", driver)
+    return str(url)
 
 
 def get_mysql_connection() -> pymysql.connections.Connection:
@@ -155,6 +197,17 @@ def to_decimal(value: Any, default: str = "0") -> Decimal:
         return Decimal(str(value))
     except Exception:  # pragma: no cover - defensive
         return Decimal(default)
+
+
+def safe_int(value: Any) -> int | None:
+    """Attempt to coerce a value to ``int`` returning ``None`` on failure."""
+
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_date(value: Any) -> Optional[dt.date]:
@@ -265,10 +318,16 @@ class ImportContext:
     since: Optional[dt.datetime]
     account: Account
     location: Location
-    owners_by_external: Dict[str, OwnerProfile] = field(default_factory=dict)
-    pets_by_external: Dict[str, Pet] = field(default_factory=dict)
-    reservations_by_external: Dict[str, Reservation] = field(default_factory=dict)
-    invoices_by_external: Dict[str, Invoice] = field(default_factory=dict)
+    owners_by_external: Dict[str, OwnerProfile | SimpleNamespace] = field(
+        default_factory=dict
+    )
+    pets_by_external: Dict[str, Pet | SimpleNamespace] = field(default_factory=dict)
+    reservations_by_external: Dict[str, Reservation | SimpleNamespace] = field(
+        default_factory=dict
+    )
+    invoices_by_external: Dict[str, Invoice | SimpleNamespace] = field(
+        default_factory=dict
+    )
     species_map: Dict[int, str] = field(default_factory=dict)
     breed_map: Dict[int, str] = field(default_factory=dict)
     reservation_type_map: Dict[int, str] = field(default_factory=dict)
@@ -691,7 +750,7 @@ def resolve_package_application(
         if "groom" in lowered or "spa" in lowered:
             return PackageApplicationType.GROOMING
         if "train" in lowered:
-            return PackageApplicationType.TRAINING
+            return PackageApplicationType.GROOMING
     return PackageApplicationType.CURRENCY
 
 
@@ -935,19 +994,17 @@ def import_pets(ctx: ImportContext) -> ImportStats:
             continue
 
         species_name = None
-        if species_col and row.get(species_col) is not None:
-            try:
-                species_name = ctx.species_map.get(int(row.get(species_col)))
-            except (ValueError, TypeError):
-                species_name = None
+        if species_col:
+            species_key = safe_int(row.get(species_col))
+            if species_key is not None:
+                species_name = ctx.species_map.get(species_key)
         pet_type = pet_type_from_string(species_name)
 
         breed_name = None
-        if breed_col and row.get(breed_col) is not None:
-            try:
-                breed_name = ctx.breed_map.get(int(row.get(breed_col)))
-            except (ValueError, TypeError):
-                breed_name = None
+        if breed_col:
+            breed_key = safe_int(row.get(breed_col))
+            if breed_key is not None:
+                breed_name = ctx.breed_map.get(breed_key)
 
         gender = (row.get(gender_col) or "").strip() if gender_col else ""
         source_notes = row.get(notes_col) if notes_col else None
@@ -1253,11 +1310,10 @@ def import_reservations(ctx: ImportContext) -> ImportStats:
         )
 
         type_name = None
-        if type_col and row.get(type_col) is not None:
-            try:
-                type_name = ctx.reservation_type_map.get(int(row.get(type_col)))
-            except (ValueError, TypeError):
-                type_name = None
+        if type_col:
+            type_key = safe_int(row.get(type_col))
+            if type_key is not None:
+                type_name = ctx.reservation_type_map.get(type_key)
         res_type = reservation_type_from_string(type_name)
 
         if cancel_at:
@@ -1464,11 +1520,11 @@ def import_invoices(ctx: ImportContext) -> ImportStats:
             continue
 
         pos_ids = fin.get("pos_breakdown", {})
-        created_at_candidates = [
-            ctx.pos_transaction_meta.get(pos_id, {}).get("created_at")
-            for pos_id in pos_ids.keys()
-        ]
-        created_at_candidates = [dt for dt in created_at_candidates if dt is not None]
+        created_at_candidates: list[dt.datetime] = []
+        for pos_id in pos_ids.keys():
+            candidate = ctx.pos_transaction_meta.get(pos_id, {}).get("created_at")
+            if isinstance(candidate, dt.datetime):
+                created_at_candidates.append(candidate)
         created_at = min(created_at_candidates) if created_at_candidates else None
 
         create_invoice(
@@ -1621,13 +1677,10 @@ def import_payments(ctx: ImportContext) -> ImportStats:
         )
         status_flag = row.get(status_flag_col)
         refund_reference = row.get(refund_ref_col)
-        method_id = row.get(method_col)
-        method_name = None
-        if method_id is not None:
-            try:
-                method_name = ctx.payment_method_map.get(int(method_id))
-            except (ValueError, TypeError):
-                method_name = None
+        method_key = safe_int(row.get(method_col))
+        method_name = (
+            ctx.payment_method_map.get(method_key) if method_key is not None else None
+        )
         provider = (method_name or "gingr").lower()[:32]
         description = row.get(description_col)
         processor_ref = row.get(processor_col)
@@ -1642,7 +1695,7 @@ def import_payments(ctx: ImportContext) -> ImportStats:
                 if alloc.get("amount") is not None
                 else amount_total
             )
-            alloc_type = int(alloc.get("type")) if alloc.get("type") is not None else 1
+            alloc_type = safe_int(alloc.get("type")) or 1
             target_id = alloc.get("type_id")
             if target_id is None:
                 continue
@@ -1860,19 +1913,15 @@ def import_package_credits(ctx: ImportContext) -> ImportStats:
                 stats.skip()
                 continue
 
-        try:
-            package_id = int(package_raw)
-        except (ValueError, TypeError):
+        package_id = safe_int(package_raw)
+        if package_id is None:
             stats.reject(f"invalid package id for credit {raw_id}")
             continue
 
         package_type = get_or_create_package_type(ctx, package_id)
 
         credits_value = row.get(credits_col)
-        try:
-            credits = int(credits_value)
-        except (TypeError, ValueError):
-            credits = 0
+        credits = safe_int(credits_value) or 0
 
         expires_at = epoch_to_datetime(row.get(expires_col)) if expires_col else None
         note = None
@@ -1882,10 +1931,7 @@ def import_package_credits(ctx: ImportContext) -> ImportStats:
         invoice_id = None
         pos_raw = row.get(pos_col)
         if pos_raw is not None:
-            try:
-                pos_id = int(pos_raw)
-            except (ValueError, TypeError):
-                pos_id = None
+            pos_id = safe_int(pos_raw)
             if pos_id is not None:
                 invoice_externals = ctx.pos_to_invoice.get(pos_id, [])
                 if invoice_externals:
@@ -2001,7 +2047,7 @@ def main() -> None:
         LOGGER.error("Failed to connect to Gingr MySQL: %s", exc)
         raise SystemExit(2) from exc
 
-    sync_url = os.environ.get("SYNC_DATABASE_URL")
+    sync_url = resolve_sync_database_url()
     if not sync_url:
         LOGGER.error("SYNC_DATABASE_URL environment variable is required")
         raise SystemExit(3)
