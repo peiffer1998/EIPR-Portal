@@ -1,11 +1,66 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ChangeEvent } from "react";
 
 import { getPet, getPetVax, listReservations } from "../../lib/fetchers";
 import EditableInfoCard from "../../components/EditableInfoCard";
 import VaccineEditor from "../../components/VaccineEditor";
 import NoteList from "../../components/NoteList";
+import DocTable from "../../components/DocTable";
+import DocPreview from "../../components/DocPreview";
+import { listDocuments, uploadDocument, finalizeDocument, deleteDocument } from "../../lib/documentsFetchers";
 import { updatePet, addVaccine, deleteVaccine, listPetNotes, addPetNote } from "../../lib/crmFetchers";
+
+function PetDocuments({ petId }: { petId: string }) {
+  const queryClient = useQueryClient();
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const docs = useQuery({
+    queryKey: ["petDocs", petId],
+    queryFn: () => listDocuments({ pet_id: petId }),
+    enabled: Boolean(petId),
+  });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadDocument(file, { pet_id: petId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["petDocs", petId] }),
+  });
+
+  const finalize = useMutation({
+    mutationFn: (id: string) => finalizeDocument(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["petDocs", petId] }),
+  });
+
+  const destroy = useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["petDocs", petId] }),
+  });
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    if (!event.target.files?.length) return;
+    const file = event.target.files[0];
+    await upload.mutateAsync(file);
+    event.target.value = "";
+  }
+
+  return (
+    <div className="grid gap-3">
+      <label className="text-sm grid w-fit">
+        <span>Upload document</span>
+        <input className="border rounded px-3 py-2" type="file" onChange={handleUpload} />
+      </label>
+
+      <DocTable
+        rows={docs.data || []}
+        onPreview={(id) => setPreviewId(id)}
+        onFinalize={(id) => finalize.mutateAsync(id)}
+        onDelete={(id) => destroy.mutateAsync(id)}
+      />
+
+      {previewId && <DocPreview id={previewId} onClose={() => setPreviewId(null)} />}
+    </div>
+  );
+}
 
 export default function PetProfile() {
   const { petId = "" } = useParams();
@@ -85,6 +140,11 @@ export default function PetProfile() {
         fetchNotes={() => listPetNotes(petId)}
         addNote={(text) => addPetNote(petId, text)}
       />
+
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h4 className="font-semibold mb-2">Documents</h4>
+        <PetDocuments petId={petId} />
+      </div>
     </div>
   );
 }

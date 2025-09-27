@@ -73,6 +73,9 @@ import AdminUsers from './staff/pages/Admin/Users';
 import AdminLocations from './staff/pages/Admin/Locations';
 import AdminCapacity from './staff/pages/Admin/Capacity';
 import AdminServices from './staff/pages/Admin/Services';
+import AdminPackages from './staff/pages/Admin/Packages';
+import AdminHours from './staff/pages/Admin/Hours';
+import AdminClosures from './staff/pages/Admin/Closures';
 import AdminPricing from './staff/pages/Admin/Pricing';
 import AdminTax from './staff/pages/Admin/Tax';
 import AdminIntegrations from './staff/pages/Admin/Integrations';
@@ -80,6 +83,8 @@ import AdminBranding from './staff/pages/Admin/Branding';
 import AdminSecurity from './staff/pages/Admin/Security';
 import AdminAPIKeys from './staff/pages/Admin/APIKeys';
 import AdminAccountCodes from './staff/pages/Admin/AccountCodes';
+import AdminInvitations from './staff/pages/Admin/Invitations';
+import AcceptInvite from './public/pages/AcceptInvite';
 import PrintRunCard from './staff/pages/Print/RunCard';
 import PrintGroomTicket from './staff/pages/Print/GroomTicket';
 import PrintFeeding from './staff/pages/Print/FeedingSheet';
@@ -190,6 +195,7 @@ createRoot(root).render(
                 </Route>
 
                 <Route path="reports" element={<ReportsHub />} />
+                <Route path="reports/availability" element={<ReportsAvailability />} />
 
                 <Route path="comms">
                   <Route path="inbox" element={<CommsInbox />} />
@@ -213,11 +219,14 @@ createRoot(root).render(
                 <Route path="staff/teams" element={<Checklists />} />
 
                 <Route path="admin">
-                <Route path="capacity" element={<AdminCapacity/>}/>
                   <Route path="users" element={<AdminUsers />} />
+                  <Route path="invitations" element={<AdminInvitations />} />
                   <Route path="locations" element={<AdminLocations />} />
+                  <Route path="hours" element={<AdminHours />} />
+                  <Route path="closures" element={<AdminClosures />} />
                   <Route path="capacity" element={<AdminCapacity />} />
                   <Route path="services" element={<AdminServices />} />
+                  <Route path="packages" element={<AdminPackages />} />
                   <Route path="pricing" element={<AdminPricing />} />
                   <Route path="tax" element={<AdminTax />} />
                   <Route path="integrations" element={<AdminIntegrations />} />
@@ -236,9 +245,10 @@ createRoot(root).render(
                 </Route>
               </Route>
 
+              <Route path="/invite/accept" element={<AcceptInvite />} />
+              <Route path="/invite/accept/:token" element={<AcceptInvite />} />
               <Route path="*" element={<Navigate to="/" replace />} />
-              <Route path="reports/availability" element={<ReportsAvailability/>}/>
-          </Routes>
+            </Routes>
           </BrowserRouter>
         </StaffAuthProvider>
       </AuthProvider>

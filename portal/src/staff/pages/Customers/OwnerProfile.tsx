@@ -1,11 +1,65 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ChangeEvent } from "react";
 
 import { getOwner, getOwnerPets, listReservations } from "../../lib/fetchers";
 import EditableInfoCard from "../../components/EditableInfoCard";
 import NoteList from "../../components/NoteList";
-import FileUploader from "../../components/FileUploader";
-import { updateOwner, listOwnerNotes, addOwnerNote, listOwnerFiles, uploadOwnerFile } from "../../lib/crmFetchers";
+import DocTable from "../../components/DocTable";
+import DocPreview from "../../components/DocPreview";
+import { listDocuments, uploadDocument, finalizeDocument, deleteDocument } from "../../lib/documentsFetchers";
+import { updateOwner, listOwnerNotes, addOwnerNote } from "../../lib/crmFetchers";
+
+function OwnerDocuments({ ownerId }: { ownerId: string }) {
+  const queryClient = useQueryClient();
+  const [previewId, setPreviewId] = useState<string | null>(null);
+
+  const docs = useQuery({
+    queryKey: ["ownerDocs", ownerId],
+    queryFn: () => listDocuments({ owner_id: ownerId }),
+    enabled: Boolean(ownerId),
+  });
+
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadDocument(file, { owner_id: ownerId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ownerDocs", ownerId] }),
+  });
+
+  const finalize = useMutation({
+    mutationFn: (id: string) => finalizeDocument(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ownerDocs", ownerId] }),
+  });
+
+  const destroy = useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["ownerDocs", ownerId] }),
+  });
+
+  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
+    if (!event.target.files?.length) return;
+    const file = event.target.files[0];
+    await upload.mutateAsync(file);
+    event.target.value = "";
+  }
+
+  return (
+    <div className="grid gap-3">
+      <label className="text-sm grid w-fit">
+        <span>Upload document</span>
+        <input className="border rounded px-3 py-2" type="file" onChange={handleUpload} />
+      </label>
+
+      <DocTable
+        rows={docs.data || []}
+        onPreview={(id) => setPreviewId(id)}
+        onFinalize={(id) => finalize.mutateAsync(id)}
+        onDelete={(id) => destroy.mutateAsync(id)}
+      />
+
+      {previewId && <DocPreview id={previewId} onClose={() => setPreviewId(null)} />}
+    </div>
+  );
+}
 
 export default function OwnerProfile() {
   const { ownerId = "" } = useParams();
@@ -85,11 +139,10 @@ export default function OwnerProfile() {
         addNote={(text) => addOwnerNote(ownerId, text)}
       />
 
-      <FileUploader
-        title="Owner Files"
-        list={() => listOwnerFiles(ownerId)}
-        upload={(file) => uploadOwnerFile(ownerId, file)}
-      />
+      <div className="bg-white p-6 rounded-xl shadow">
+        <h4 className="font-semibold mb-2">Documents</h4>
+        <OwnerDocuments ownerId={ownerId} />
+      </div>
     </div>
   );
 }

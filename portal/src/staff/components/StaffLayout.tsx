@@ -83,9 +83,13 @@ const groups: {
     title: "Admin",
     links: [
       { to: "/staff/admin/users", label: "Users" },
+      { to: "/staff/admin/invitations", label: "Invitations" },
       { to: "/staff/admin/locations", label: "Locations" },
+      { to: "/staff/admin/hours", label: "Hours" },
+      { to: "/staff/admin/closures", label: "Closures" },
       { to: "/staff/admin/capacity", label: "Capacity" },
       { to: "/staff/admin/services", label: "Services" },
+      { to: "/staff/admin/packages", label: "Packages" },
       { to: "/staff/admin/pricing", label: "Pricing Rules" },
       { to: "/staff/admin/tax", label: "Tax Rates" },
       { to: "/staff/admin/integrations", label: "Integrations" },
