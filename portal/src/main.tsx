@@ -5,6 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
 import './index.css';
+import ReportsAvailability from './staff/pages/Reports/Availability';
 import ReservationDetail from './staff/pages/Reservations/Detail';
 import { queryClient } from './lib/query';
 import { AuthProvider } from './state/AuthContext';
@@ -212,6 +213,7 @@ createRoot(root).render(
                 <Route path="staff/teams" element={<Checklists />} />
 
                 <Route path="admin">
+                <Route path="capacity" element={<AdminCapacity/>}/>
                   <Route path="users" element={<AdminUsers />} />
                   <Route path="locations" element={<AdminLocations />} />
                   <Route path="capacity" element={<AdminCapacity />} />
@@ -235,7 +237,8 @@ createRoot(root).render(
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+              <Route path="reports/availability" element={<ReportsAvailability/>}/>
+          </Routes>
           </BrowserRouter>
         </StaffAuthProvider>
       </AuthProvider>
