@@ -45,6 +45,7 @@ const StorePackages = lazy(() => import('./routes/StorePackages'));
 const StoreGiftCerts = lazy(() => import('./routes/StoreGiftCerts'));
 const StoreBalances = lazy(() => import('./routes/StoreBalances'));
 const StaffLayout = lazy(() => import('./staff/components/StaffLayout'));
+const CheckoutPage = lazy(() => import('./staff/pages/Checkout'));
 const StaffLogin = lazy(() => import('./staff/pages/Login'));
 const StaffDashboard = lazy(() => import('./staff/pages/Dashboard'));
 const ReservationsList = lazy(() => import('./staff/pages/Reservations/List'));
@@ -202,6 +203,7 @@ createRoot(root).render(
                 )}
               >
                 <Route index element={<StaffDashboard />} />
+                <Route path="checkout" element={<CheckoutPage />} />
 
                 <Route path="calendar">
                   <Route path="boarding" element={<BoardingCal />} />

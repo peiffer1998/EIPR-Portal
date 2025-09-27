@@ -6,8 +6,10 @@ export type DashboardReservation = {
   status: string;
   start_at: string;
   end_at: string;
+  location_id?: string | null;
   pet: { id?: string; name?: string; species?: string } | null;
   owner: { id?: string; first_name?: string; last_name?: string } | null;
+  owner_id?: string | null;
   run_id?: string | null;
   run_name?: string | null;
   feeding_lines?: unknown[] | null;
@@ -31,8 +33,10 @@ function mapReservation(raw: any): DashboardReservation {
     status: raw?.status ?? "REQUESTED",
     start_at: raw?.start_at ?? raw?.start ?? "",
     end_at: raw?.end_at ?? raw?.end ?? "",
+    location_id: raw?.location_id ?? raw?.location?.id ?? null,
     pet,
     owner,
+    owner_id: raw?.owner_id ?? raw?.owner?.id ?? null,
     run_id: raw?.run_id ?? raw?.kennel_id ?? raw?.run?.id ?? null,
     run_name: raw?.run?.name ?? raw?.run_name ?? null,
     feeding_lines: raw?.feeding_lines ?? raw?.feeding ?? raw?.feeding_plan ?? null,

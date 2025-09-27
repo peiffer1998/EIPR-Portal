@@ -6,6 +6,8 @@ import StaffSearchBar from "./StaffSearchBar";
 import { useStaffAuth } from "../state/StaffAuthContext";
 import SkipToContent from "../../a11y/SkipToContent";
 import QuickSearch from "../../ui/QuickSearch";
+import { CheckoutCartProvider } from "../state/CheckoutCart";
+import CheckoutButton from "./CheckoutButton";
 import { attachPrefetch } from "../../perf/prefetch";
 
 const PREFETCH_IMPORTERS: Record<string, () => Promise<unknown>> = {
@@ -64,6 +66,7 @@ const groups: {
     links: [
       { to: "/staff/invoices", label: "Invoices" },
       { to: "/staff/payments", label: "Payments" },
+      { to: "/staff/checkout", label: "Checkout" },
       { to: "/staff/store/packages", label: "Packages" },
       { to: "/staff/store/memberships", label: "Memberships" },
       { to: "/staff/store/gift-certificates", label: "Gift Certificates" },
@@ -140,59 +143,62 @@ export default function StaffLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen grid grid-cols-[260px_1fr] bg-slate-100">
-      <SkipToContent />
-      <aside
-        className="bg-slate-900 text-slate-100 p-4 flex flex-col gap-3"
-        role="navigation"
-        aria-label="Staff sections"
-      >
-        <div className="text-lg font-semibold">EIPR Staff</div>
-        {groups.map((g) => (
-          <div key={g.title}>
-            <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
-              {g.title}
+    <CheckoutCartProvider>
+      <div className="min-h-screen grid grid-cols-[260px_1fr] bg-slate-100">
+        <SkipToContent />
+        <aside
+          className="bg-slate-900 text-slate-100 p-4 flex flex-col gap-3"
+          role="navigation"
+          aria-label="Staff sections"
+        >
+          <div className="text-lg font-semibold">EIPR Staff</div>
+          {groups.map((g) => (
+            <div key={g.title}>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400 mb-1">
+                {g.title}
+              </div>
+              <nav className="flex flex-col gap-1">
+                {g.links.map((l) => (
+                  <NavLink
+                    key={l.to}
+                    to={l.to}
+                    end={l.end}
+                    data-prefetch-route={PREFETCH_KEYS.has(l.to) ? l.to : undefined}
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded text-sm ${
+                        isActive
+                          ? "bg-orange-500 text-white"
+                          : "text-slate-300 hover:text-white hover:bg-slate-800"
+                      }`
+                    }
+                  >
+                    {l.label}
+                  </NavLink>
+                ))}
+              </nav>
             </div>
-            <nav className="flex flex-col gap-1">
-              {g.links.map((l) => (
-                <NavLink
-                  key={l.to}
-                  to={l.to}
-                  end={l.end}
-                  data-prefetch-route={PREFETCH_KEYS.has(l.to) ? l.to : undefined}
-                  className={({ isActive }) =>
-                    `px-3 py-2 rounded text-sm ${
-                      isActive
-                        ? "bg-orange-500 text-white"
-                        : "text-slate-300 hover:text-white hover:bg-slate-800"
-                    }`
-                  }
-                >
-                  {l.label}
-                </NavLink>
-              ))}
-            </nav>
+          ))}
+          <div className="mt-auto text-xs text-slate-400 flex items-center justify-between gap-2">
+            <span>{user?.email}</span>
+            <button
+              onClick={logout}
+              className="inline-flex items-center gap-1 px-2 py-1 bg-slate-800 rounded"
+              type="button"
+            >
+              <LogOut size={14} />
+              Logout
+            </button>
           </div>
-        ))}
-        <div className="mt-auto text-xs text-slate-400 flex items-center justify-between gap-2">
-          <span>{user?.email}</span>
-          <button
-            onClick={logout}
-            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-800 rounded"
-            type="button"
-          >
-            <LogOut size={14} />
-            Logout
-          </button>
-        </div>
-      </aside>
-      <main id="main" role="main" className="p-6" tabIndex={-1}>
-        <div className="mb-4 flex items-center justify-end">
-          <StaffSearchBar />
-        </div>
-        <Outlet />
-      </main>
-      <QuickSearch open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
-    </div>
+        </aside>
+        <main id="main" role="main" className="p-6" tabIndex={-1}>
+          <div className="mb-4 flex items-center justify-end">
+            <StaffSearchBar />
+          </div>
+          <Outlet />
+        </main>
+        <QuickSearch open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
+        <CheckoutButton />
+      </div>
+    </CheckoutCartProvider>
   );
 }
