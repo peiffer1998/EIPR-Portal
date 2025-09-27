@@ -2,6 +2,10 @@ import React from "react";
 
 import { useCheckoutCart } from "../../state/CheckoutCart";
 import {
+  ensureInvoiceForReservation,
+  addInvoiceLine,
+  getReservation,
+  isLateReservation,
   findInvoiceForReservation,
   refreshInvoice,
   captureInvoice,
@@ -9,7 +13,7 @@ import {
   refundInvoiceAmount,
   emailReceipt,
   receiptUrl,
-} from "../../lib/tenderFetchers";
+} from "../../lib/tenderPlus";
 import { checkOut } from "../../lib/reservationOps";
 import { toast } from "../../../ui/Toast";
 
@@ -18,6 +22,8 @@ const currency = (value: unknown) => {
   return `$${amount.toFixed(2)}`;
 };
 
+const LATE_FEE_AMOUNT = 20;
+
 type Row = {
   reservationId: string;
   ownerId: string;
@@ -25,6 +31,10 @@ type Row = {
   petId?: string;
   service?: string;
   invoice?: any | null;
+  reservation?: any | null;
+  late: boolean;
+  tipPercent: number;
+  tipAmount: number;
   loading?: boolean;
   selected: boolean;
 };
@@ -33,12 +43,17 @@ export default function CheckoutPage(): JSX.Element {
   const { cart, remove, clear } = useCheckoutCart();
   const [rows, setRows] = React.useState<Row[]>([]);
   const [busy, setBusy] = React.useState(false);
-  const rowsRef = React.useRef<Row[]>([]);
+  const [paymentMode, setPaymentMode] = React.useState<"card" | "cash">("card");
+  const [sendEmailReceipts, setSendEmailReceipts] = React.useState(true);
+  const [openPrintReceipts, setOpenPrintReceipts] = React.useState(true);
+  const [autoCheckout, setAutoCheckout] = React.useState(true);
 
+  const rowsRef = React.useRef<Row[]>([]);
   React.useEffect(() => {
     rowsRef.current = rows;
   }, [rows]);
 
+  // Load invoices + reservation metadata
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -46,12 +61,19 @@ export default function CheckoutPage(): JSX.Element {
       for (const item of cart.items) {
         const reservationId = item.reservationId;
         let invoice: any | null = null;
+        let reservation: any | null = null;
         try {
           invoice = await findInvoiceForReservation(reservationId);
         } catch (error) {
           console.warn("invoice lookup failed", error);
         }
+        try {
+          reservation = await getReservation(reservationId);
+        } catch (error) {
+          console.warn("reservation lookup failed", error);
+        }
         if (cancelled) return;
+        const late = isLateReservation(reservation);
         next.push({
           reservationId,
           ownerId: item.ownerId,
@@ -59,6 +81,10 @@ export default function CheckoutPage(): JSX.Element {
           petId: item.petId,
           service: item.service,
           invoice,
+          reservation,
+          late,
+          tipPercent: 0,
+          tipAmount: 0,
           selected: true,
         });
       }
@@ -103,6 +129,34 @@ export default function CheckoutPage(): JSX.Element {
     setRows((prev) =>
       prev.map((row) =>
         row.reservationId === reservationId ? { ...row, selected: !row.selected } : row,
+      ),
+    );
+  }, []);
+
+  const handleLateToggle = React.useCallback((reservationId: string) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.reservationId === reservationId ? { ...row, late: !row.late } : row,
+      ),
+    );
+  }, []);
+
+  const handleTipPercentChange = React.useCallback((reservationId: string, value: number) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.reservationId === reservationId
+          ? { ...row, tipPercent: Math.max(0, value), tipAmount: 0 }
+          : row,
+      ),
+    );
+  }, []);
+
+  const handleTipAmountChange = React.useCallback((reservationId: string, value: number) => {
+    setRows((prev) =>
+      prev.map((row) =>
+        row.reservationId === reservationId
+          ? { ...row, tipAmount: Math.max(0, value), tipPercent: 0 }
+          : row,
       ),
     );
   }, []);
@@ -236,6 +290,109 @@ export default function CheckoutPage(): JSX.Element {
     });
   }, []);
 
+  const handleCompleteCheckout = React.useCallback(async () => {
+    const toProcess = rowsRef.current.filter((row) => row.selected);
+    if (!toProcess.length) {
+      toast("Select at least one reservation to complete checkout.", "info");
+      return;
+    }
+
+    setBusy(true);
+    const succeeded: string[] = [];
+    const updatedRows = new Map<string, Row>();
+
+    try {
+      for (const row of toProcess) {
+        try {
+          let invoice = row.invoice ?? (await ensureInvoiceForReservation(row.reservationId));
+          if (!invoice) {
+            throw new Error("Unable to create invoice");
+          }
+
+          if (row.late) {
+            await addInvoiceLine(invoice.id, {
+              description: "Late Pick-up Fee",
+              qty: 1,
+              unit_price: LATE_FEE_AMOUNT,
+              taxable: false,
+            });
+          }
+
+          let tipAmount = 0;
+          if (row.tipAmount > 0) {
+            tipAmount = row.tipAmount;
+          } else if (row.tipPercent > 0) {
+            const base = Number(invoice.balance ?? invoice.total ?? 0);
+            tipAmount = Number((base * (row.tipPercent / 100)).toFixed(2));
+          }
+          if (tipAmount > 0) {
+            await addInvoiceLine(invoice.id, {
+              description: "Tip",
+              qty: 1,
+              unit_price: tipAmount,
+              taxable: false,
+            });
+          }
+
+          invoice = (await refreshInvoice(invoice.id)) ?? invoice;
+
+          if (paymentMode === "card") {
+            await captureInvoice(invoice.id);
+          } else {
+            const cashAmount = Number(invoice.balance ?? invoice.total ?? 0);
+            await recordCashPayment(invoice.id, cashAmount > 0 ? cashAmount : undefined);
+            invoice = (await refreshInvoice(invoice.id)) ?? invoice;
+          }
+
+          if (sendEmailReceipts) {
+            await emailReceipt(row.ownerId, invoice.id);
+          }
+
+          if (openPrintReceipts) {
+            window.open(receiptUrl(invoice.id), "_blank", "noopener");
+          }
+
+          if (autoCheckout) {
+            await checkOut(row.reservationId);
+          }
+
+          succeeded.push(row.reservationId);
+          updatedRows.set(row.reservationId, {
+            ...row,
+            invoice,
+            loading: false,
+            tipPercent: 0,
+            tipAmount: 0,
+          });
+        } catch (error) {
+          console.warn("complete checkout failed", error);
+          toast(`Checkout failed for ${row.petName ?? "reservation"}.`, "error");
+          updatedRows.set(row.reservationId, { ...row, loading: false });
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+
+    setRows((prev) => {
+      const map = new Map(prev.map((row) => [row.reservationId, row]));
+      updatedRows.forEach((value, key) => {
+        if (autoCheckout && succeeded.includes(key)) {
+          map.delete(key);
+        } else {
+          map.set(key, value);
+        }
+      });
+      return Array.from(map.values());
+    });
+
+    succeeded.forEach((reservationId) => remove(reservationId));
+
+    if (succeeded.length) {
+      toast(`Checkout completed for ${succeeded.length} reservation${succeeded.length === 1 ? "" : "s"}.`, "success");
+    }
+  }, [autoCheckout, openPrintReceipts, paymentMode, remove, sendEmailReceipts]);
+
   return (
     <div className="grid gap-4">
       <div className="rounded-xl bg-white p-4 shadow">
@@ -305,6 +462,56 @@ export default function CheckoutPage(): JSX.Element {
       </div>
 
       <div className="rounded-xl bg-white p-4 shadow">
+        <div className="grid gap-3 md:grid-cols-[repeat(2,minmax(0,1fr))_auto_auto_auto] md:items-end">
+          <label className="text-sm font-medium text-slate-700">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Payment Method</span>
+            <select
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={paymentMode}
+              onChange={(event) => setPaymentMode(event.target.value as "card" | "cash")}
+            >
+              <option value="card">Card</option>
+              <option value="cash">Cash</option>
+            </select>
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Email Receipts</span>
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={sendEmailReceipts}
+              onChange={(event) => setSendEmailReceipts(event.target.checked)}
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Open Print Receipts</span>
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={openPrintReceipts}
+              onChange={(event) => setOpenPrintReceipts(event.target.checked)}
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            <span className="mb-1 block text-xs uppercase tracking-wide text-slate-500">Check-Out After Payment</span>
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={autoCheckout}
+              onChange={(event) => setAutoCheckout(event.target.checked)}
+            />
+          </label>
+          <button
+            className="rounded bg-orange-500 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-orange-600 disabled:opacity-50"
+            onClick={handleCompleteCheckout}
+            disabled={busy || !selectedRows.length}
+          >
+            Complete Checkout
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl bg-white p-4 shadow">
         <div className="mb-3 flex items-center justify-between">
           <div className="font-semibold text-slate-900">Reservations</div>
           <label className="flex items-center gap-2 text-sm">
@@ -321,57 +528,95 @@ export default function CheckoutPage(): JSX.Element {
                 <th className="px-3 py-2">Pet</th>
                 <th className="px-3 py-2">Service</th>
                 <th className="px-3 py-2">Invoice</th>
-                <th className="px-3 py-2">Balance</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Late Fee</th>
+                <th className="px-3 py-2">Tip</th>
+                <th className="px-3 py-2 text-right">Balance</th>
                 <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.reservationId} className="border-t">
-                  <td className="px-3 py-2 align-middle">
-                    <input
-                      type="checkbox"
-                      checked={row.selected}
-                      onChange={() => toggleRow(row.reservationId)}
-                    />
-                  </td>
-                  <td className="px-3 py-2 align-middle">
-                    <div className="font-medium text-slate-900">{row.petName ?? row.petId ?? "Pet"}</div>
-                    <div className="text-xs text-slate-500">Reservation {row.reservationId}</div>
-                  </td>
-                  <td className="px-3 py-2 align-middle text-slate-600">{row.service ?? "—"}</td>
-                  <td className="px-3 py-2 align-middle">
-                    {row.invoice ? (
-                      <div className="flex flex-col">
-                        <span className="font-mono text-xs">{row.invoice.id}</span>
-                        <span className="text-xs text-slate-500">{row.invoice.status}</span>
+              {rows.map((row) => {
+                const balance = row.invoice ? Number(row.invoice.balance ?? row.invoice.total ?? 0) : 0;
+                return (
+                  <tr key={row.reservationId} className="border-t">
+                    <td className="px-3 py-2 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={row.selected}
+                        disabled={busy}
+                        onChange={() => toggleRow(row.reservationId)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="font-medium text-slate-900">{row.petName ?? row.petId ?? "Pet"}</div>
+                      <div className="text-xs text-slate-500">Reservation {row.reservationId}</div>
+                    </td>
+                    <td className="px-3 py-2 align-middle text-slate-600">{row.service ?? "—"}</td>
+                    <td className="px-3 py-2 align-middle">
+                      {row.invoice ? (
+                        <div className="flex flex-col">
+                          <span className="font-mono text-xs">{row.invoice.id}</span>
+                          <span className="text-xs text-slate-500">{row.invoice.status}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">No invoice</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 align-middle">{row.invoice ? row.invoice.status : "—"}</td>
+                    <td className="px-3 py-2 align-middle">
+                      <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={row.late}
+                          disabled={busy}
+                          onChange={() => handleLateToggle(row.reservationId)}
+                        />
+                        <span>${LATE_FEE_AMOUNT}</span>
+                      </label>
+                    </td>
+                    <td className="px-3 py-2 align-middle">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          className="w-20 rounded border border-slate-200 px-2 py-1 text-sm"
+                          value={row.tipPercent}
+                          disabled={busy}
+                          onChange={(event) => handleTipPercentChange(row.reservationId, Number(event.target.value))}
+                          placeholder="%"
+                        />
+                        <span className="text-xs text-slate-500">or</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          className="w-24 rounded border border-slate-200 px-2 py-1 text-sm"
+                          value={row.tipAmount}
+                          disabled={busy}
+                          onChange={(event) => handleTipAmountChange(row.reservationId, Number(event.target.value))}
+                          placeholder="$"
+                        />
                       </div>
-                    ) : (
-                      <span className="text-slate-400">No invoice</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right">
-                    {row.invoice ? currency(row.invoice.balance ?? row.invoice.total ?? 0) : "—"}
-                  </td>
-                  <td className="px-3 py-2 align-middle text-right">
-                    {row.invoice?.id && (
-                      <a className="mr-3 text-blue-700" href={receiptUrl(row.invoice.id)} target="_blank" rel="noreferrer">
-                        Print
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      className="text-red-600"
-                      onClick={() => handleRemove(row.reservationId)}
-                    >
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-3 py-2 align-middle text-right font-medium">{row.invoice ? currency(balance) : "—"}</td>
+                    <td className="px-3 py-2 align-middle text-right">
+                      <button
+                        type="button"
+                        className="text-red-600"
+                        disabled={busy}
+                        onClick={() => handleRemove(row.reservationId)}
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {!rows.length && (
                 <tr>
-                  <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                  <td colSpan={9} className="px-3 py-6 text-center text-slate-500">
                     Cart is empty.
                   </td>
                 </tr>
