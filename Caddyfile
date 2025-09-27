@@ -6,6 +6,11 @@
 :80 {
   encode gzip
 
+  @assets {
+    path *.js *.css *.woff *.woff2 *.svg *.png *.jpg *.jpeg *.gif *.webp
+  }
+  header @assets Cache-Control "public, max-age=31536000, immutable"
+
   @health path /health /api/v1/health
   respond @health 200
 
