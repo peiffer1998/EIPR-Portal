@@ -34,3 +34,8 @@ backend/coverage.xml
 build/
 dist/
 
+.storage/
+
+portal/e2e/.auth/
+portal/test-results*/
+!portal/.env.e2e.example
