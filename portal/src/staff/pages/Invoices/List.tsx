@@ -2,6 +2,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import Button from "../../../ui/Button";
+import { Card } from "../../../ui/Card";
+import Page from "../../../ui/Page";
+import Table from "../../../ui/Table";
+import { Input, Label, Select } from "../../../ui/Inputs";
 import Money from "../../components/Money";
 import { listInvoices } from "../../lib/billingFetchers";
 
@@ -26,38 +31,48 @@ export default function InvoicesList() {
   const invoices = invoicesQuery.data ?? [];
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-3 rounded-xl bg-white p-4 shadow md:grid-cols-5">
-        <label className="text-sm">
-          <span className="text-slate-600">From</span>
-          <input type="date" className="mt-1 w-full rounded border px-3 py-2" value={from} onChange={(event) => setFrom(event.target.value)} />
-        </label>
-        <label className="text-sm">
-          <span className="text-slate-600">To</span>
-          <input type="date" className="mt-1 w-full rounded border px-3 py-2" value={to} onChange={(event) => setTo(event.target.value)} />
-        </label>
-        <label className="text-sm">
-          <span className="text-slate-600">Status</span>
-          <select className="mt-1 w-full rounded border px-3 py-2" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="">Any</option>
-            <option value="PENDING">Pending</option>
-            <option value="PAID">Paid</option>
-            <option value="REFUNDED">Refunded</option>
-          </select>
-        </label>
-        <label className="text-sm md:col-span-2">
-          <span className="text-slate-600">Search</span>
-          <input
-            className="mt-1 w-full rounded border px-3 py-2"
-            placeholder="Owner, pet, invoice #"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-      </div>
+    <Page>
+      <Page.Header
+        title="Invoices"
+        actions={
+          <Button type="button" variant="ghost" onClick={() => invoicesQuery.refetch()}>
+            Refresh
+          </Button>
+        }
+      />
 
-      <div className="overflow-auto rounded-xl bg-white shadow">
-        <table className="w-full text-sm">
+      <Card>
+        <div className="grid gap-3 md:grid-cols-5">
+          <Label>
+            <span className="text-slate-600">From</span>
+            <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          </Label>
+          <Label>
+            <span className="text-slate-600">To</span>
+            <Input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          </Label>
+          <Label>
+            <span className="text-slate-600">Status</span>
+            <Select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="">Any</option>
+              <option value="PENDING">Pending</option>
+              <option value="PAID">Paid</option>
+              <option value="REFUNDED">Refunded</option>
+            </Select>
+          </Label>
+          <Label className="md:col-span-2">
+            <span className="text-slate-600">Search</span>
+            <Input
+              placeholder="Owner, pet, invoice #"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </Label>
+        </div>
+      </Card>
+
+      <Card className="overflow-auto">
+        <Table>
           <thead>
             <tr className="text-left text-slate-500">
               <th className="px-3 py-2">Invoice</th>
@@ -91,8 +106,8 @@ export default function InvoicesList() {
               </tr>
             )}
           </tbody>
-        </table>
-      </div>
-    </div>
+        </Table>
+      </Card>
+    </Page>
   );
 }

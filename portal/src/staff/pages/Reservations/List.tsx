@@ -1,33 +1,49 @@
 import { useQuery } from "@tanstack/react-query";
 
+import Button from "../../../ui/Button";
+import { Card } from "../../../ui/Card";
+import Page from "../../../ui/Page";
+import Table from "../../../ui/Table";
 import { listReservations } from "../../lib/fetchers";
 
 export default function ReservationsList() {
   const reservations = useQuery({ queryKey: ["resv"], queryFn: () => listReservations({ limit: 50 }) });
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
-      <h3 className="text-xl font-semibold mb-2">Reservations</h3>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500">
-            <th>Pet</th>
-            <th>Type</th>
-            <th>Start</th>
-            <th>End</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(reservations.data || []).map((r: any) => (
-            <tr key={r.id} className="border-t">
-              <td className="py-2">{r.pet_id}</td>
-              <td>{r.reservation_type}</td>
-              <td>{new Date(r.start_at).toLocaleString()}</td>
-              <td>{new Date(r.end_at).toLocaleString()}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Page>
+      <Page.Header
+        title="Reservations"
+        actions={
+          <Button as="a" href="/staff/reservations/new">
+            New Reservation
+          </Button>
+        }
+      />
+
+      <Card>
+        <div className="overflow-auto">
+          <Table>
+            <thead>
+              <tr className="text-left text-slate-500">
+                <th className="px-3 py-2">Pet</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Start</th>
+                <th className="px-3 py-2">End</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(reservations.data || []).map((r: any) => (
+                <tr key={r.id} className="border-t">
+                  <td className="px-3 py-2">{r.pet_id}</td>
+                  <td className="px-3 py-2">{r.reservation_type}</td>
+                  <td className="px-3 py-2">{new Date(r.start_at).toLocaleString()}</td>
+                  <td className="px-3 py-2">{new Date(r.end_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      </Card>
+    </Page>
   );
 }

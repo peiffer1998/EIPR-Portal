@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import Button from "../../../ui/Button";
+import { Card } from "../../../ui/Card";
+import Page from "../../../ui/Page";
+import Table from "../../../ui/Table";
 import BoardFilters from "../../components/BoardFilters";
 import ProgramSelect from "../../components/ProgramSelect";
 import GroupChip from "../../components/GroupChip";
@@ -143,65 +148,67 @@ export default function DaycareRoster() {
   const standingCount = visibleRows.filter((row) => row.standing).length;
 
   return (
-    <div className="grid gap-4">
-      <BoardFilters onChange={setFilters} />
+    <Page>
+      <Page.Header
+        title="Daycare Roster"
+        sub="Manage groups, incidents, and check-outs"
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-4 shadow">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">Program</span>
-            <ProgramSelect locationId={filters.location_id} value={program} onChange={setProgram} />
+      <Card>
+        <BoardFilters onChange={setFilters} />
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">Program</span>
+              <ProgramSelect locationId={filters.location_id} value={program} onChange={setProgram} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">Groups</span>
+              <button
+                type="button"
+                className={`rounded-full px-2 py-1 text-[11px] ${groupFilter === "__all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
+                onClick={() => setGroupFilter("__all")}
+              >
+                All
+              </button>
+              <GroupChip value={null} onClick={() => setGroupFilter(null)} active={groupFilter === null} />
+              {availableGroups.map((group) => (
+                <GroupChip
+                  key={group}
+                  value={group}
+                  onClick={() => setGroupFilter(group)}
+                  active={groupFilter === group}
+                />
+              ))}
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">Groups</span>
-            <button
+            <Button type="button" className="text-sm" onClick={() => bulkCheckOut(false)}>
+              Bulk Check-Out
+            </Button>
+            <Button
               type="button"
-              className={`rounded-full px-2 py-1 text-[11px] ${groupFilter === "__all" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"}`}
-              onClick={() => setGroupFilter("__all")}
+              variant="secondary"
+              className="text-sm"
+              onClick={() => bulkCheckOut(true)}
             >
-              All
-            </button>
-            <GroupChip
-              value={null}
-              onClick={() => setGroupFilter(null)}
-              active={groupFilter === null}
-            />
-            {availableGroups.map((group) => (
-              <GroupChip
-                key={group}
-                value={group}
-                onClick={() => setGroupFilter(group)}
-                active={groupFilter === group}
-              />
-            ))}
+              Bulk Late Check-Out
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded bg-slate-900 px-3 py-2 text-sm text-white"
-            onClick={() => bulkCheckOut(false)}
-          >
-            Bulk Check-Out
-          </button>
-          <button
-            type="button"
-            className="rounded bg-amber-600 px-3 py-2 text-sm text-white"
-            onClick={() => bulkCheckOut(true)}
-          >
-            Bulk Late Check-Out
-          </button>
-        </div>
-      </div>
+      </Card>
 
       {standingCount > 0 ? (
-        <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+        <Card className="border border-amber-200 bg-amber-50 text-sm text-amber-700">
           {standingCount} attendee{standingCount === 1 ? "" : "s"} have a {standingLabel} today.
-        </div>
+        </Card>
       ) : null}
 
-      <div className="overflow-auto rounded-xl bg-white shadow">
-        <table className="w-full text-sm">
+      <Card className="overflow-auto">
+        <Table>
           <thead className="text-left text-slate-500">
             <tr>
               <th className="px-3 py-2">
@@ -215,11 +222,11 @@ export default function DaycareRoster() {
                 />
               </th>
               <th className="px-3 py-2">Pet</th>
-              <th>Owner</th>
-              <th>Program</th>
-              <th>Group</th>
-              <th>Status</th>
-              <th>Actions</th>
+              <th className="px-3 py-2">Owner</th>
+              <th className="px-3 py-2">Program</th>
+              <th className="px-3 py-2">Group</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -352,8 +359,8 @@ export default function DaycareRoster() {
               </tr>
             ) : null}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </Card>
 
       <IncidentDialog
         open={incidentTarget !== null}
@@ -363,6 +370,6 @@ export default function DaycareRoster() {
           await incidentMutation.mutateAsync({ id: incidentTarget, type, note });
         }}
       />
-    </div>
+    </Page>
   );
 }

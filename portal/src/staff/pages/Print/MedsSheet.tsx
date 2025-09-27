@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
+import PrintLayout from "../../../print/PrintLayout";
 import { getMedsBoard } from "../../lib/boardFetchers";
 
 export default function MedsSheet() {
@@ -17,53 +18,49 @@ export default function MedsSheet() {
 
   const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
-  useEffect(() => {
-    if (date && locationId) {
-      const handle = setTimeout(() => window.print(), 100);
-      return () => clearTimeout(handle);
-    }
-    return undefined;
-  }, [date, locationId, rows.length]);
-
   return (
-    <div style={{ fontFamily: "ui-sans-serif", padding: "24px" }}>
-      <h1 style={{ fontSize: "24px", marginBottom: "4px" }}>Medication Sheet</h1>
-      <div style={{ color: "#475569", marginBottom: "16px" }}>
-        Date: <strong>{date}</strong> • Location: <strong>{locationId}</strong>
-      </div>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-        <thead>
-          <tr>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Pet</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Run</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Time</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Medication</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Dose</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Notes</th>
-            <th align="left" style={{ borderBottom: "1px solid #cbd5f5", padding: "6px" }}>Given</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row: any) => (
-            <tr key={row.id}>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.pet?.name || row.reservation_id}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.run?.name || ""}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.time || ""}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.med || ""}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.dose || ""}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>{row.notes || ""}</td>
-              <td style={{ borderBottom: "1px solid #e2e8f0", padding: "6px" }}>___</td>
-            </tr>
-          ))}
-          {rows.length === 0 ? (
+    <PrintLayout
+      title="Medication Sheet"
+      meta={[
+        { label: "Date", value: date },
+        { label: "Location", value: locationId || "All" },
+        { label: "Count", value: rows.length },
+      ]}
+    >
+      <section className="print-block" aria-labelledby="meds-table">
+        <div className="print-section-title" id="meds-table">Medication Schedule</div>
+        <table className="print-table">
+          <thead>
             <tr>
-              <td colSpan={7} style={{ padding: "12px", color: "#64748b" }}>
-                No medication items for this selection.
-              </td>
+              <th scope="col">Pet</th>
+              <th scope="col">Medication</th>
+              <th scope="col">Dosage</th>
+              <th scope="col">Frequency</th>
+              <th scope="col">Instructions</th>
+              <th scope="col">Initial</th>
             </tr>
-          ) : null}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row: any) => (
+              <tr key={row.id ?? `${row.reservation_id}-${row.medication}`}> 
+                <td>{row.pet?.name ?? row.reservation_id}</td>
+                <td>{row.medication ?? row.name ?? ""}</td>
+                <td>{row.dosage ?? row.amount ?? ""}</td>
+                <td>{row.frequency ?? row.schedule ?? ""}</td>
+                <td>{row.notes ?? row.instructions ?? ""}</td>
+                <td style={{ width: "18%" }}>_______</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", color: "var(--print-muted)" }}>
+                  No medications for this selection.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </PrintLayout>
   );
 }

@@ -2,6 +2,9 @@ import type { DragEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import Button from "../../../ui/Button";
+import { Card } from "../../../ui/Card";
+import Page from "../../../ui/Page";
 import GroomingFilters from "../../components/GroomingFilters";
 import OwnerPicker from "../../components/OwnerPicker";
 import PetPicker from "../../components/PetPicker";
@@ -204,23 +207,27 @@ export default function GroomingBoard() {
   };
 
   return (
-    <div className="grid gap-4">
-      <GroomingFilters onChange={setFilters} />
+    <Page>
+      <Page.Header
+        title="Grooming Board"
+        actions={
+          <Button type="button" onClick={() => setDialogOpen(true)}>
+            New Appointment
+          </Button>
+        }
+      />
 
-      <div className="flex items-center justify-between">
+      <Card>
+        <GroomingFilters onChange={setFilters} />
+      </Card>
+
+      <Card>
         <div className="text-sm text-slate-600">
           {Array.isArray(appointments) ? appointments.length : 0} appointments
         </div>
-        <button
-          type="button"
-          className="rounded bg-slate-900 px-3 py-2 text-white shadow-sm"
-          onClick={() => setDialogOpen(true)}
-        >
-          New Appointment
-        </button>
-      </div>
+      </Card>
 
-      <div className="bg-white rounded-xl shadow overflow-auto">
+      <Card className="overflow-auto">
         <div className="min-w-[960px]">
           <div className="grid sticky top-0 z-10 bg-white" style={{ gridTemplateColumns: `160px repeat(${columns.length}, minmax(220px, 1fr))` }}>
             <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Time</div>
@@ -313,7 +320,7 @@ export default function GroomingBoard() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {dialogOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -421,6 +428,6 @@ export default function GroomingBoard() {
           </form>
         </div>
       ) : null}
-    </div>
+    </Page>
   );
 }

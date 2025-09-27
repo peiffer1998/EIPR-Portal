@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { fetchReportCardDetail } from '../lib/portal';
+import LazyImg from '../ui/LazyImg';
 
 const REPORT_CARD_DETAIL_QUERY_KEY = ['portal', 'report-card'];
 
@@ -63,7 +64,7 @@ const ReportCardDetail = () => {
             {data.media.map((item) => (
               <figure key={item.id} className="max-w-xs">
                 {item.display_url ? (
-                  <img
+                  <LazyImg
                     src={item.display_url}
                     alt={item.document.file_name}
                     className="w-full rounded-xl object-cover shadow-sm"

@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer } from "lucide-react";
 
+import Button from "../../../ui/Button";
+import { Card } from "../../../ui/Card";
+import Page from "../../../ui/Page";
+import Table from "../../../ui/Table";
 import BoardFilters from "../../components/BoardFilters";
 import BulkBar from "../../components/BulkBar";
 import InlineText from "../../components/InlineText";
@@ -113,25 +117,40 @@ export default function MedsBoard() {
   };
 
   return (
-    <div className="grid gap-3">
-      <BoardFilters onChange={setFilters} />
+    <Page>
+      <Page.Header
+        title="Medication Board"
+        actions={
+          <Button
+            type="button"
+            variant="ghost"
+            className="items-center text-sm"
+            disabled={!filters.location_id || !filters.date}
+            onClick={goToPrint}
+          >
+            <Printer size={16} /> Print sheet
+          </Button>
+        }
+      />
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-slate-600">{isFetching ? "Loading…" : `${rows.length} medication items`}</div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-3 py-2 rounded"
-          disabled={!filters.location_id || !filters.date}
-          onClick={goToPrint}
-        >
-          <Printer size={16} /> Print sheet
-        </button>
-      </div>
+      <Card>
+        <BoardFilters onChange={setFilters} />
+      </Card>
 
-      <BulkBar selected={selected} busy={bulkBusy} onMarkGiven={bulkMarkGiven} />
+      <Card>
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-slate-600">
+            {isFetching ? "Loading…" : `${rows.length} medication items`}
+          </div>
+        </div>
+      </Card>
 
-      <div className="bg-white rounded-xl shadow overflow-auto">
-        <table className="w-full text-sm">
+      <Card>
+        <BulkBar selected={selected} busy={bulkBusy} onMarkGiven={bulkMarkGiven} />
+      </Card>
+
+      <Card className="overflow-auto">
+        <Table>
           <thead>
             <tr className="text-left text-slate-500">
               <th className="px-3 py-2">
@@ -225,8 +244,8 @@ export default function MedsBoard() {
               </tr>
             ) : null}
           </tbody>
-        </table>
-      </div>
-    </div>
+        </Table>
+      </Card>
+    </Page>
   );
 }

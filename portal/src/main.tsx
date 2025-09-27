@@ -1,95 +1,107 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 
 import App from './App';
 import './index.css';
-import ReportsAvailability from './staff/pages/Reports/Availability';
-import ReservationDetail from './staff/pages/Reservations/Detail';
+import './theme/theme.css';
+import './a11y/focus.css';
+import ErrorBoundary from './ui/ErrorBoundary';
+import ToastHost from './ui/Toast';
+import DebugPanel from './telemetry/DebugPanel';
+import Loading from './ui/Loading';
+import { toggleDebugPanel } from './telemetry/telemetry';
+
 import { queryClient } from './lib/query';
 import { AuthProvider } from './state/AuthContext';
-import LoginRegister from './routes/LoginRegister';
-import Dashboard from './routes/Dashboard';
-import Pets from './routes/Pets';
-import Reservations from './routes/Reservations';
-import Invoices from './routes/Invoices';
-import Uploads from './routes/Uploads';
-import ReportCards from './routes/ReportCards';
-import ReportCardDetail from './routes/ReportCardDetail';
-import Store from './routes/Store';
-import StorePackages from './routes/StorePackages';
-import StoreGiftCerts from './routes/StoreGiftCerts';
-import StoreBalances from './routes/StoreBalances';
+
 import ProtectedRoute from './components/ProtectedRoute';
 
 import { StaffAuthProvider } from './staff/state/StaffAuthContext';
 import RequireStaff from './staff/components/RequireStaff';
-import StaffLayout from './staff/components/StaffLayout';
-import StaffLogin from './staff/pages/Login';
-import StaffDashboard from './staff/pages/Dashboard';
-import ReservationsList from './staff/pages/Reservations/List';
-import NewReservation from './staff/pages/Reservations/NewReservation';
-import NewGroom from './staff/pages/Grooming/NewAppointment';
-import GroomingBoard from './staff/pages/Grooming/Board';
-import CustomersList from './staff/pages/Customers';
-import OwnerProfile from './staff/pages/Customers/OwnerProfile';
-import PetsList from './staff/pages/Pets/List';
-import PetProfile from './staff/pages/Pets/PetProfile';
-import InvoicesList from './staff/pages/Invoices/List';
-import InvoiceDetail from './staff/pages/Invoices/Detail';
-import PaymentsList from './staff/pages/Payments/List';
-import StaffStorePackages from './staff/pages/Store/Packages';
-import StoreMemberships from './staff/pages/Store/Memberships';
-import GiftCertificates from './staff/pages/Store/GiftCertificates';
-import StoreCredits from './staff/pages/Store/Credits';
-import StoreCoupons from './staff/pages/Store/Coupons';
-import StoreRewards from './staff/pages/Store/Rewards';
-import ReportsHub from './staff/pages/Reports';
-import CommsInbox from './staff/pages/Comms/Inbox';
-import CommsTemplates from './staff/pages/Comms/Templates';
-import CommsCampaigns from './staff/pages/Comms/Campaigns';
-import WaitlistPage from './staff/pages/Waitlist';
-import PrecheckHome from './staff/pages/Precheck';
-import TimeClock from './staff/pages/Staff/TimeClock';
-import Tips from './staff/pages/Staff/Tips';
-import Commissions from './staff/pages/Staff/Commissions';
-import Payroll from './staff/pages/Staff/Payroll';
-import BoardingCal from './staff/pages/Calendar/Boarding';
-import DaycareCal from './staff/pages/Calendar/Daycare';
-import GroomingCal from './staff/pages/Calendar/Grooming';
-import CombinedCal from './staff/pages/Calendar/Combined';
-import DaycareRoster from './staff/pages/Daycare/Roster';
-import DaycareStanding from './staff/pages/Daycare/Standing';
-import LodgingMap from './staff/pages/Boarding/LodgingMap';
-import FeedingBoard from './staff/pages/Boarding/Feeding';
-import MedsBoard from './staff/pages/Boarding/Meds';
-import BelongingsBoard from './staff/pages/Boarding/Belongings';
-import RunCards from './staff/pages/Boarding/RunCards';
-import Incidents from './staff/pages/Ops/Incidents';
-import Checklists from './staff/pages/Ops/Checklists';
-import FilesPage from './staff/pages/Ops/Files';
-import AdminUsers from './staff/pages/Admin/Users';
-import AdminLocations from './staff/pages/Admin/Locations';
-import AdminCapacity from './staff/pages/Admin/Capacity';
-import AdminServices from './staff/pages/Admin/Services';
-import AdminPackages from './staff/pages/Admin/Packages';
-import AdminHours from './staff/pages/Admin/Hours';
-import AdminClosures from './staff/pages/Admin/Closures';
-import AdminPricing from './staff/pages/Admin/Pricing';
-import AdminTax from './staff/pages/Admin/Tax';
-import AdminIntegrations from './staff/pages/Admin/Integrations';
-import AdminBranding from './staff/pages/Admin/Branding';
-import AdminSecurity from './staff/pages/Admin/Security';
-import AdminAPIKeys from './staff/pages/Admin/APIKeys';
-import AdminAccountCodes from './staff/pages/Admin/AccountCodes';
-import AdminInvitations from './staff/pages/Admin/Invitations';
-import AcceptInvite from './public/pages/AcceptInvite';
-import PrintRunCard from './staff/pages/Print/RunCard';
-import PrintGroomTicket from './staff/pages/Print/GroomTicket';
-import PrintFeeding from './staff/pages/Print/FeedingSheet';
-import PrintMeds from './staff/pages/Print/MedsSheet';
-import PrintReceipt from './staff/pages/Print/Receipt';
+const ReportsAvailability = lazy(() => import('./staff/pages/Reports/Availability'));
+const ReservationDetail = lazy(() => import('./staff/pages/Reservations/Detail'));
+const LoginRegister = lazy(() => import('./routes/LoginRegister'));
+const Dashboard = lazy(() => import('./routes/Dashboard'));
+const Pets = lazy(() => import('./routes/Pets'));
+const Reservations = lazy(() => import('./routes/Reservations'));
+const Invoices = lazy(() => import('./routes/Invoices'));
+const Uploads = lazy(() => import('./routes/Uploads'));
+const ReportCards = lazy(() => import('./routes/ReportCards'));
+const ReportCardDetail = lazy(() => import('./routes/ReportCardDetail'));
+const Store = lazy(() => import('./routes/Store'));
+const StorePackages = lazy(() => import('./routes/StorePackages'));
+const StoreGiftCerts = lazy(() => import('./routes/StoreGiftCerts'));
+const StoreBalances = lazy(() => import('./routes/StoreBalances'));
+const StaffLayout = lazy(() => import('./staff/components/StaffLayout'));
+const StaffLogin = lazy(() => import('./staff/pages/Login'));
+const StaffDashboard = lazy(() => import('./staff/pages/Dashboard'));
+const ReservationsList = lazy(() => import('./staff/pages/Reservations/List'));
+const NewReservation = lazy(() => import('./staff/pages/Reservations/NewReservation'));
+const NewGroom = lazy(() => import('./staff/pages/Grooming/NewAppointment'));
+const GroomingBoard = lazy(() => import('./staff/pages/Grooming/Board'));
+const CustomersList = lazy(() => import('./staff/pages/Customers'));
+const OwnerProfile = lazy(() => import('./staff/pages/Customers/OwnerProfile'));
+const PetsList = lazy(() => import('./staff/pages/Pets/List'));
+const PetProfile = lazy(() => import('./staff/pages/Pets/PetProfile'));
+const InvoicesList = lazy(() => import('./staff/pages/Invoices/List'));
+const InvoiceDetail = lazy(() => import('./staff/pages/Invoices/Detail'));
+const PaymentsList = lazy(() => import('./staff/pages/Payments/List'));
+const StaffStorePackages = lazy(() => import('./staff/pages/Store/Packages'));
+const StoreMemberships = lazy(() => import('./staff/pages/Store/Memberships'));
+const GiftCertificates = lazy(() => import('./staff/pages/Store/GiftCertificates'));
+const StoreCredits = lazy(() => import('./staff/pages/Store/Credits'));
+const StoreCoupons = lazy(() => import('./staff/pages/Store/Coupons'));
+const StoreRewards = lazy(() => import('./staff/pages/Store/Rewards'));
+const ReportsHub = lazy(() => import('./staff/pages/Reports'));
+const CommsInbox = lazy(() => import('./staff/pages/Comms/Inbox'));
+const CommsTemplates = lazy(() => import('./staff/pages/Comms/Templates'));
+const CommsCampaigns = lazy(() => import('./staff/pages/Comms/Campaigns'));
+const WaitlistPage = lazy(() => import('./staff/pages/Waitlist'));
+const PrecheckHome = lazy(() => import('./staff/pages/Precheck'));
+const TimeClock = lazy(() => import('./staff/pages/Staff/TimeClock'));
+const Tips = lazy(() => import('./staff/pages/Staff/Tips'));
+const Commissions = lazy(() => import('./staff/pages/Staff/Commissions'));
+const Payroll = lazy(() => import('./staff/pages/Staff/Payroll'));
+const BoardingCal = lazy(() => import('./staff/pages/Calendar/Boarding'));
+const DaycareCal = lazy(() => import('./staff/pages/Calendar/Daycare'));
+const GroomingCal = lazy(() => import('./staff/pages/Calendar/Grooming'));
+const CombinedCal = lazy(() => import('./staff/pages/Calendar/Combined'));
+const DaycareRoster = lazy(() => import('./staff/pages/Daycare/Roster'));
+const DaycareStanding = lazy(() => import('./staff/pages/Daycare/Standing'));
+const LodgingMap = lazy(() => import('./staff/pages/Boarding/LodgingMap'));
+const FeedingBoard = lazy(() => import('./staff/pages/Boarding/Feeding'));
+const MedsBoard = lazy(() => import('./staff/pages/Boarding/Meds'));
+const BelongingsBoard = lazy(() => import('./staff/pages/Boarding/Belongings'));
+const RunCards = lazy(() => import('./staff/pages/Boarding/RunCards'));
+const Incidents = lazy(() => import('./staff/pages/Ops/Incidents'));
+const Checklists = lazy(() => import('./staff/pages/Ops/Checklists'));
+const FilesPage = lazy(() => import('./staff/pages/Ops/Files'));
+const AdminUsers = lazy(() => import('./staff/pages/Admin/Users'));
+const AdminLocations = lazy(() => import('./staff/pages/Admin/Locations'));
+const AdminCapacity = lazy(() => import('./staff/pages/Admin/Capacity'));
+const AdminServices = lazy(() => import('./staff/pages/Admin/Services'));
+const AdminPackages = lazy(() => import('./staff/pages/Admin/Packages'));
+const AdminHours = lazy(() => import('./staff/pages/Admin/Hours'));
+const AdminClosures = lazy(() => import('./staff/pages/Admin/Closures'));
+const AdminPricing = lazy(() => import('./staff/pages/Admin/Pricing'));
+const AdminTax = lazy(() => import('./staff/pages/Admin/Tax'));
+const AdminIntegrations = lazy(() => import('./staff/pages/Admin/Integrations'));
+const AdminBranding = lazy(() => import('./staff/pages/Admin/Branding'));
+const AdminSecurity = lazy(() => import('./staff/pages/Admin/Security'));
+const AdminAPIKeys = lazy(() => import('./staff/pages/Admin/APIKeys'));
+const AdminAccountCodes = lazy(() => import('./staff/pages/Admin/AccountCodes'));
+const AdminInvitations = lazy(() => import('./staff/pages/Admin/Invitations'));
+const DesignSystem = lazy(() => import('./staff/pages/Design/System'));
+const AcceptInvite = lazy(() => import('./public/pages/AcceptInvite'));
+const NotFound = lazy(() => import('./public/pages/NotFound'));
+const PrintRunCard = lazy(() => import('./staff/pages/Print/RunCard'));
+const PrintGroomTicket = lazy(() => import('./staff/pages/Print/GroomTicket'));
+const PrintFeeding = lazy(() => import('./staff/pages/Print/FeedingSheet'));
+const PrintMeds = lazy(() => import('./staff/pages/Print/MedsSheet'));
+const PrintReceipt = lazy(() => import('./staff/pages/Print/Receipt'));
+
 
 const root = document.getElementById('root');
 
@@ -99,9 +111,11 @@ createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <StaffAuthProvider>
-          <BrowserRouter>
-            <Routes>
+        <ErrorBoundary>
+          <StaffAuthProvider>
+            <BrowserRouter>
+              <Suspense fallback={<Loading text="Loading view…" />}>
+                <Routes>
               <Route path="/login" element={<LoginRegister />} />
               <Route
                 path="/"
@@ -194,6 +208,8 @@ createRoot(root).render(
                   <Route path="rewards" element={<StoreRewards />} />
                 </Route>
 
+                <Route path="design/system" element={<DesignSystem />} />
+
                 <Route path="reports" element={<ReportsHub />} />
                 <Route path="reports/availability" element={<ReportsAvailability />} />
 
@@ -247,11 +263,22 @@ createRoot(root).render(
 
               <Route path="/invite/accept" element={<AcceptInvite />} />
               <Route path="/invite/accept/:token" element={<AcceptInvite />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </BrowserRouter>
-        </StaffAuthProvider>
+              <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+            <ToastHost />
+            <DebugPanel />
+          </StaffAuthProvider>
+        </ErrorBoundary>
       </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
+
+window.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === '`') {
+    event.preventDefault();
+    toggleDebugPanel();
+  }
+});

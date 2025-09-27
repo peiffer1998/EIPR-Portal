@@ -1,8 +1,21 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { LogOut } from "lucide-react";
 
 import StaffSearchBar from "./StaffSearchBar";
 import { useStaffAuth } from "../state/StaffAuthContext";
+import SkipToContent from "../../a11y/SkipToContent";
+import QuickSearch from "../../ui/QuickSearch";
+import { attachPrefetch } from "../../perf/prefetch";
+
+const PREFETCH_IMPORTERS: Record<string, () => Promise<unknown>> = {
+  "/staff/grooming/board": () => import("../pages/Grooming/Board"),
+  "/staff/daycare/roster": () => import("../pages/Daycare/Roster"),
+  "/staff/invoices": () => import("../pages/Invoices/List"),
+  "/staff/reports": () => import("../pages/Reports"),
+};
+
+const PREFETCH_KEYS = new Set(Object.keys(PREFETCH_IMPORTERS));
 
 const groups: {
   title: string;
@@ -97,16 +110,43 @@ const groups: {
       { to: "/staff/admin/security", label: "Security" },
       { to: "/staff/admin/api-keys", label: "API Keys" },
       { to: "/staff/admin/account-codes", label: "Account Codes" },
+      { to: "/staff/design/system", label: "Design System" },
     ],
   },
 ];
 
 export default function StaffLayout() {
   const { user, logout } = useStaffAuth();
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false);
+
+  useEffect(() => {
+    Object.entries(PREFETCH_IMPORTERS).forEach(([path, importer]) => {
+      attachPrefetch(`[data-prefetch-route="${path}"]`, importer);
+    });
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setQuickSearchOpen(true);
+      }
+      if (event.key === 'Escape') {
+        setQuickSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
     <div className="min-h-screen grid grid-cols-[260px_1fr] bg-slate-100">
-      <aside className="bg-slate-900 text-slate-100 p-4 flex flex-col gap-3">
+      <SkipToContent />
+      <aside
+        className="bg-slate-900 text-slate-100 p-4 flex flex-col gap-3"
+        role="navigation"
+        aria-label="Staff sections"
+      >
         <div className="text-lg font-semibold">EIPR Staff</div>
         {groups.map((g) => (
           <div key={g.title}>
@@ -119,6 +159,7 @@ export default function StaffLayout() {
                   key={l.to}
                   to={l.to}
                   end={l.end}
+                  data-prefetch-route={PREFETCH_KEYS.has(l.to) ? l.to : undefined}
                   className={({ isActive }) =>
                     `px-3 py-2 rounded text-sm ${
                       isActive
@@ -145,12 +186,13 @@ export default function StaffLayout() {
           </button>
         </div>
       </aside>
-      <main className="p-6">
+      <main id="main" role="main" className="p-6" tabIndex={-1}>
         <div className="mb-4 flex items-center justify-end">
           <StaffSearchBar />
         </div>
         <Outlet />
       </main>
+      <QuickSearch open={quickSearchOpen} onClose={() => setQuickSearchOpen(false)} />
     </div>
   );
 }

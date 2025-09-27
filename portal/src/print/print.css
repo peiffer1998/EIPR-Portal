@@ -1,0 +1,131 @@
+:root {
+  --print-text: #111827;
+  --print-muted: #6b7280;
+  --print-border: #d1d5db;
+  --print-heading: #0f172a;
+  --print-accent: #1e3a8a;
+}
+
+body.print-mode {
+  background: #fff;
+  color: var(--print-text);
+  font-family: "Inter", "Segoe UI", sans-serif;
+}
+
+.print-container {
+  max-width: 8.3in;
+  margin: 0 auto;
+  padding: 16px 20px 32px;
+}
+
+.print-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 2px solid var(--print-border);
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.print-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--print-heading);
+}
+
+.print-meta {
+  font-size: 12px;
+  color: var(--print-muted);
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.print-meta strong {
+  color: var(--print-heading);
+}
+
+.print-block {
+  page-break-inside: avoid;
+  margin-bottom: 18px;
+}
+
+.print-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--print-heading);
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.print-table th,
+.print-table td {
+  padding: 6px 8px;
+  border-top: 1px solid var(--print-border);
+  vertical-align: top;
+}
+
+.print-table thead th {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--print-muted);
+  letter-spacing: 0.04em;
+  border-top: none;
+  border-bottom: 2px solid var(--print-border);
+}
+
+.print-footer {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--print-border);
+  font-size: 11px;
+  color: var(--print-muted);
+}
+
+.print-notes {
+  border: 1px solid var(--print-border);
+  min-height: 64px;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.no-print {
+  display: none;
+}
+
+@media screen {
+  body.print-mode {
+    background: #f8fafc;
+  }
+
+  .print-container {
+    margin: 32px auto;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+    border-radius: 12px;
+  }
+}
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #fff !important;
+  }
+
+  .print-container {
+    margin: 0;
+    max-width: none;
+    padding: 6mm;
+  }
+
+  .no-print { display: none !important; }
+}
