@@ -11,6 +11,7 @@ from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.security.encryption import EncryptedStr
 from app.models.mixins import TimestampMixin
 from app.models.user import UserRole
 
@@ -42,10 +43,10 @@ class StaffInvitation(TimestampMixin, Base):
     invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
-    email: Mapped[str] = mapped_column(String(320), nullable=False)
-    first_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    phone_number: Mapped[str | None] = mapped_column(String(32))
+    email: Mapped[str] = mapped_column(EncryptedStr(768), nullable=False)
+    first_name: Mapped[str] = mapped_column(EncryptedStr(256), nullable=False)
+    last_name: Mapped[str] = mapped_column(EncryptedStr(256), nullable=False)
+    phone_number: Mapped[str | None] = mapped_column(EncryptedStr(256))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
     status: Mapped[StaffInvitationStatus] = mapped_column(
         Enum(StaffInvitationStatus),

@@ -18,7 +18,7 @@ TARGETS: dict[str, list[str]] = {
     "pets": ["pet", "animal", "dog", "cat"],
     "immunizations": ["immun", "vacc", "shot"],
     "reservations": ["reservation", "booking", "appt", "appointment", "lodging"],
-    "invoices": ["invoice", "billing"],
+    "invoices": ["invoice", "billing", "pos_transaction", "pos", "sale"],
     "payments": ["payment", "transaction"],
     "packages": ["package", "pass", "membership"],
     "credits": ["credit", "gift", "certificate", "store"],
@@ -145,7 +145,7 @@ def fetch_columns(
 ) -> list[dict[str, Any]]:
     cur.execute(
         """
-        SELECT COLUMN_NAME as column_name, DATA_TYPE as data_type
+        SELECT COLUMN_NAME as column_name, DATA_TYPE as data_type, COLUMN_KEY as column_key
         FROM information_schema.COLUMNS
         WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
         ORDER BY ORDINAL_POSITION
@@ -155,12 +155,22 @@ def fetch_columns(
     return list(cur.fetchall())
 
 
-def score_table(table_name: str, tokens: Iterable[str]) -> int:
+def score_table(table_name: str, tokens: Iterable[str]) -> float:
+    """Return a relative score for how well a table name matches a target token list."""
+
     lowered = table_name.lower()
-    score = 0
+    score: float = 0.0
     for token in tokens:
-        if token in lowered:
-            score += 5
+        token = token.lower()
+        if lowered == token or lowered == f"{token}s":
+            score += 200.0
+        elif lowered.startswith(f"{token}_") or lowered.endswith(f"_{token}"):
+            score += 25.0
+        elif token in lowered:
+            score += 5.0
+
+    # Prefer shorter names when scores tie (e.g., ``owners`` over ``owner_files``).
+    score -= len(lowered) * 0.01
     return score
 
 
@@ -180,17 +190,34 @@ def best_table(tables: list[dict[str, Any]], target: str) -> Optional[dict[str, 
 
 
 def guess_column(columns: list[dict[str, Any]], hints: list[str]) -> Optional[str]:
+    """Choose the best-fitting column for a logical field."""
+
+    lowered_hints = [h.lower() for h in hints]
     best_name: Optional[str] = None
-    best_score = -1
+    best_score = -1.0
     for column in columns:
-        name = column["column_name"].lower()
-        score = 0
-        for hint in hints:
-            if hint in name:
+        name = column["column_name"]
+        lname = name.lower()
+        column_key = (column.get("column_key") or "").lower()
+
+        score = 0.0
+        for hint in lowered_hints:
+            if lname == hint or lname == f"{hint}_id" or lname == f"{hint}s":
+                score += 200.0
+            elif lname.startswith(f"{hint}_") or lname.endswith(f"_{hint}"):
+                score += 25.0
+            elif hint in lname:
                 score += len(hint)
+
+        if column_key == "pri" and any(
+            h == "id" or h.endswith("_id") for h in lowered_hints
+        ):
+            score += 100.0
+
         if score > best_score:
             best_score = score
-            best_name = column["column_name"]
+            best_name = name
+
     return best_name
 
 
@@ -216,7 +243,11 @@ def build_mapping(
             field_hints = FIELD_HINTS.get(target, {})
             selected_columns: Dict[str, Optional[str]] = {}
             for field, hints in field_hints.items():
-                selected_columns[field] = guess_column(columns, hints)
+                hint_list = list(hints)
+                lowered_existing = [h.lower() for h in hint_list]
+                if field.lower() not in lowered_existing:
+                    hint_list = [field] + hint_list
+                selected_columns[field] = guess_column(columns, hint_list)
 
             mapping[target] = {
                 "table": table_name,

@@ -1,0 +1,93 @@
+owners:
+  table: owners
+  columns:
+    id: id
+    first_name: first_name
+    last_name: last_name
+    email: email
+    phone: cell_phone
+    created_at: created_at
+    updated_at: created_at
+    address1: address_1
+    address2: address_2
+    city: city
+    state: state
+    postal_code: zip
+    notes: notes
+pets:
+  table: animals
+  columns:
+    id: id
+    owner_id: owner_id
+    name: first_name
+    species_id: species_id
+    breed_id: breed_id
+    gender: gender
+    dob: birthday
+    notes: notes
+    created_at: created_at
+immunizations:
+  table: immunizations
+  columns:
+    id: id
+    pet_id: animal_id
+    type_id: immunization_type_id
+    expires_on: expiration_date
+    updated_at: last_updated_at
+    notes: note
+reservations:
+  table: reservations
+  columns:
+    id: id
+    pet_id: animal_id
+    owner_id: owner_id
+    type_id: type_id
+    start_at: start_date
+    end_at: end_date
+    check_in_at: check_in_stamp
+    check_out_at: check_out_stamp
+    cancel_at: cancel_stamp
+    confirmed_at: confirmed_stamp
+    waitlist_at: wait_list_stamp
+    waitlist_accept_at: wait_list_accepted_stamp
+    location_id: location_id
+    notes: notes
+    base_rate: base_rate
+    final_rate: final_rate
+    cancel_total: cancel_total
+    created_at: created_at
+invoices:
+  table: pos_transactions
+  columns:
+    id: id
+    owner_id: owner_id
+    subtotal: subtotal
+    discount_total: discounts_total
+    tax_total: tax_amount
+    total: total
+    payment_total: payment_amount
+    created_at: create_stamp
+    location_id: location_id
+payments:
+  table: payments
+  columns:
+    id: id
+    owner_id: owner_id
+    amount: total_balance
+    payment_method_id: payment_method_id
+    status_flag: captured
+    created_at: create_stamp
+    description: description
+    processor_ref: payment_intent_id
+    external_ref: stripe_transaction_id
+    refund_ref: stripe_refund_id
+packages:
+  table: owner_packages
+  columns:
+    id: id
+    owner_id: owner_id
+    package_id: package_id
+    credits_remaining: number_remaining
+    expires_at: expires_at
+    pos_transaction_id: pos_transaction_id
+    value_per_credit: value_per_credit

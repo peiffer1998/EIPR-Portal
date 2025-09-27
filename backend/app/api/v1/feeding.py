@@ -1,4 +1,5 @@
 """Feeding schedule API endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,10 +22,14 @@ router = APIRouter(prefix="/reservations/{reservation_id}/feeding-schedules")
 
 def _assert_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
-@router.get("", response_model=list[FeedingScheduleRead], summary="List feeding schedules")
+@router.get(
+    "", response_model=list[FeedingScheduleRead], summary="List feeding schedules"
+)
 async def list_feeding_schedules(
     reservation_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -38,7 +43,9 @@ async def list_feeding_schedules(
             reservation_id=reservation_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return [FeedingScheduleRead.model_validate(obj) for obj in schedules]
 
 
@@ -56,7 +63,9 @@ async def create_feeding_schedule(
 ) -> FeedingScheduleRead:
     _assert_staff(current_user)
     if payload.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reservation mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Reservation mismatch"
+        )
     try:
         schedule = await feeding_service.create_feeding_schedule(
             session,
@@ -64,7 +73,9 @@ async def create_feeding_schedule(
             account_id=current_user.account_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return FeedingScheduleRead.model_validate(schedule)
 
 
@@ -87,7 +98,9 @@ async def update_feeding_schedule(
         schedule_id=schedule_id,
     )
     if schedule is None or schedule.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feeding schedule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Feeding schedule not found"
+        )
     try:
         updated = await feeding_service.update_feeding_schedule(
             session,
@@ -96,7 +109,9 @@ async def update_feeding_schedule(
             payload=payload,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     return FeedingScheduleRead.model_validate(updated)
 
 
@@ -118,7 +133,9 @@ async def delete_feeding_schedule(
         schedule_id=schedule_id,
     )
     if schedule is None or schedule.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feeding schedule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Feeding schedule not found"
+        )
     await feeding_service.delete_feeding_schedule(
         session,
         schedule=schedule,

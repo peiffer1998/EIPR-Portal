@@ -16,6 +16,7 @@ from app.models.invoice import Invoice, InvoiceStatus
 from app.models.reservation import Reservation
 from app.models.pet import Pet
 from app.models.owner_profile import OwnerProfile
+from app.security.redact import is_redaction_enabled, mask_name
 
 HEADER = [
     "invoice_id",
@@ -65,6 +66,8 @@ async def export_sales_receipts(
     result = await session.execute(stmt)
     invoices = list(result.scalars().unique().all())
 
+    redact_enabled = is_redaction_enabled()
+
     with destination.open("w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(HEADER)
@@ -75,7 +78,12 @@ async def export_sales_receipts(
                 pet_name = invoice.reservation.pet.name
                 owner_profile = invoice.reservation.pet.owner
                 if owner_profile and owner_profile.user:
-                    owner_name = f"{owner_profile.user.first_name} {owner_profile.user.last_name}"
+                    first = owner_profile.user.first_name
+                    last = owner_profile.user.last_name
+                    if redact_enabled:
+                        owner_name = mask_name(first, last)
+                    else:
+                        owner_name = " ".join(part for part in (first, last) if part)
             writer.writerow(
                 [
                     str(invoice.id),

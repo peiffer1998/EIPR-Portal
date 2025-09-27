@@ -1,4 +1,5 @@
 """Schemas for location hours and closures."""
+
 from __future__ import annotations
 
 import uuid

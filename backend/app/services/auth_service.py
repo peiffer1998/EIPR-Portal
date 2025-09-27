@@ -1,4 +1,5 @@
 """Authentication service helpers."""
+
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,9 @@ from app.schemas.user import UserCreate
 from app.services import user_service
 
 
-async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:
+async def authenticate_user(
+    session: AsyncSession, email: str, password: str
+) -> User | None:
     """Validate credentials and return a user if correct."""
     user = await user_service.get_user_by_email(session, email=email.lower())
     if user is None:

@@ -1,4 +1,5 @@
 """Database session and engine helpers."""
+
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -21,13 +22,17 @@ def _resolve_database_url(override: str | None = None) -> str:
     return override or settings.database_url
 
 
-def get_sessionmaker(database_url: str | None = None) -> async_sessionmaker[AsyncSession]:
+def get_sessionmaker(
+    database_url: str | None = None,
+) -> async_sessionmaker[AsyncSession]:
     """Return (and cache) an async sessionmaker for the given database URL."""
     url = _resolve_database_url(database_url)
     sessionmaker = _sessionmaker_cache.get(url)
     if sessionmaker is None:
         engine = create_async_engine(url, echo=False, future=True)
-        sessionmaker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        sessionmaker = async_sessionmaker(
+            engine, expire_on_commit=False, class_=AsyncSession
+        )
         _engine_cache[url] = engine
         _sessionmaker_cache[url] = sessionmaker
     return sessionmaker

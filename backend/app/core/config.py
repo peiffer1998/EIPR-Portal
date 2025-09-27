@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     app_env: str = Field("local", alias="APP_ENV")
     app_name: str = "Eastern Iowa Pet Resort API"
+    app_encryption_key: str = Field(..., alias="APP_ENCRYPTION_KEY")
     api_v1_prefix: str = "/api/v1"
 
     database_url: str = Field(..., alias="DATABASE_URL")
@@ -84,6 +85,19 @@ class Settings(BaseSettings):
         default=None, alias="CORS_ALLOW_ORIGIN_REGEX"
     )
     cors_allow_credentials: bool = Field(default=False, alias="CORS_ALLOW_CREDENTIALS")
+    cors_allowlist: list[str] = Field(
+        default_factory=lambda: ["http://localhost:5173"], alias="CORS_ALLOWLIST"
+    )
+
+    rate_limit_default: str = Field("100/minute", alias="RATE_LIMIT_DEFAULT")
+    rate_limit_login: str = Field("10/minute", alias="RATE_LIMIT_LOGIN")
+    export_redact: bool = Field(True, alias="EXPORT_REDACT")
+
+    gingr_mysql_host: str | None = Field(default=None, alias="GINGR_MYSQL_HOST")
+    gingr_mysql_port: int | None = Field(default=None, alias="GINGR_MYSQL_PORT")
+    gingr_mysql_db: str | None = Field(default=None, alias="GINGR_MYSQL_DB")
+    gingr_mysql_user: str | None = Field(default=None, alias="GINGR_MYSQL_USER")
+    gingr_mysql_password: str | None = Field(default=None, alias="GINGR_MYSQL_PASSWORD")
 
     kisi_api_key: str | None = Field(default=None, alias="KISI_API_KEY")
     kisi_door_id: str | None = Field(default=None, alias="KISI_DOOR_ID")
@@ -99,7 +113,7 @@ class Settings(BaseSettings):
         if not self.jwt_secret_key:
             object.__setattr__(self, "jwt_secret_key", self.secret_key)
 
-    @field_validator("cors_allow_origins", mode="before")
+    @field_validator("cors_allow_origins", "cors_allowlist", mode="before")
     @classmethod
     def _split_origins(cls, value: Any) -> Any:
         if isinstance(value, str):

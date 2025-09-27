@@ -1,4 +1,5 @@
 """Service package management."""
+
 from __future__ import annotations
 
 import uuid
@@ -11,10 +12,14 @@ from app.models.service_package import ServicePackage
 from app.schemas.package import ServicePackageCreate, ServicePackageUpdate
 
 
-async def list_packages(session: AsyncSession, *, account_id: uuid.UUID) -> list[ServicePackage]:
-    stmt: Select[tuple[ServicePackage]] = select(ServicePackage).where(
-        ServicePackage.account_id == account_id
-    ).order_by(ServicePackage.name.asc())
+async def list_packages(
+    session: AsyncSession, *, account_id: uuid.UUID
+) -> list[ServicePackage]:
+    stmt: Select[tuple[ServicePackage]] = (
+        select(ServicePackage)
+        .where(ServicePackage.account_id == account_id)
+        .order_by(ServicePackage.name.asc())
+    )
     result = await session.execute(stmt)
     return list(result.scalars().unique().all())
 

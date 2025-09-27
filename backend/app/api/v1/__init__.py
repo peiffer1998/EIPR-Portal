@@ -34,6 +34,7 @@ from . import (
     payments_webhook,
     pricing,
     reports,
+    reports_max,
     reservations,
     run_cards,
     service_catalog,
@@ -78,6 +79,7 @@ router.include_router(
 router.include_router(agreements.router, prefix="/agreements", tags=["agreements"])
 router.include_router(icons.router, prefix="/icons", tags=["icons"])
 router.include_router(reports.router, tags=["reports"])
+router.include_router(reports_max.router, tags=["reports-max"])
 router.include_router(capacity.router, tags=["capacity"])
 router.include_router(service_catalog.router, tags=["service-catalog"])
 router.include_router(packages.router, tags=["packages"])

@@ -1,4 +1,5 @@
 """Owner management API."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -12,17 +13,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from app.models.reservation import ReservationStatus
 from app.models.user import User, UserRole
-from app.schemas.owner import OwnerCreate, OwnerRead, OwnerUpdate, OwnerReservationRequest
+from app.schemas.owner import (
+    OwnerCreate,
+    OwnerRead,
+    OwnerUpdate,
+    OwnerReservationRequest,
+)
 from app.schemas.reservation import ReservationRead
-from app.services import notification_service, owner_service, pet_service, reservation_service
+from app.security.permissions import require_roles
+from app.services import (
+    notification_service,
+    owner_service,
+    pet_service,
+    reservation_service,
+)
 
 router = APIRouter()
+
+_ALLOWED_STAFF_ROLES = {
+    UserRole.SUPERADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.STAFF,
+}
 
 
 def _assert_staff_authority(user: User) -> None:
     """Ensure the current user can manage owners."""
-    if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+    require_roles(user, _ALLOWED_STAFF_ROLES)
 
 
 @router.get("", response_model=list[OwnerRead], summary="List owners")
@@ -43,7 +61,12 @@ async def list_owners(
     return [OwnerRead.model_validate(owner) for owner in owners]
 
 
-@router.post("", response_model=OwnerRead, status_code=status.HTTP_201_CREATED, summary="Create owner")
+@router.post(
+    "",
+    response_model=OwnerRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create owner",
+)
 async def create_owner(
     payload: OwnerCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -58,7 +81,9 @@ async def create_owner(
             **payload.model_dump(),
         )
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
+        ) from exc
     return OwnerRead.model_validate(owner)
 
 
@@ -76,7 +101,9 @@ async def get_owner(
         owner_id=owner_id,
     )
     if owner is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
     return OwnerRead.model_validate(owner)
 
 
@@ -95,7 +122,9 @@ async def update_owner(
         owner_id=owner_id,
     )
     if owner is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
 
     try:
         updated_owner = await owner_service.update_owner(
@@ -105,7 +134,9 @@ async def update_owner(
             **payload.model_dump(exclude_unset=True),
         )
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
+        ) from exc
     return OwnerRead.model_validate(updated_owner)
 
 
@@ -127,7 +158,9 @@ async def owner_create_reservation(
     if current_user.role == UserRole.PET_PARENT:
         owner = await owner_service.get_owner_by_user(session, user_id=current_user.id)
         if owner is None or owner.id != owner_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+            )
     else:
         _assert_staff_authority(current_user)
         owner = await owner_service.get_owner(
@@ -136,7 +169,9 @@ async def owner_create_reservation(
             owner_id=owner_id,
         )
         if owner is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+            )
 
     pet = await pet_service.get_pet(
         session,
@@ -144,7 +179,9 @@ async def owner_create_reservation(
         pet_id=payload.pet_id,
     )
     if pet is None or pet.owner_id != owner.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found for owner")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Pet not found for owner"
+        )
 
     try:
         reservation = await reservation_service.create_reservation(
@@ -160,6 +197,8 @@ async def owner_create_reservation(
             notes=payload.notes,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     notification_service.notify_booking_confirmation(reservation, background_tasks)
     return ReservationRead.model_validate(reservation)

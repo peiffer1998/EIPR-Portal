@@ -28,6 +28,15 @@ docker compose exec api pytest -q
 
 Use `make down` to stop containers and `make logs` to tail the API service.
 
+## Staff Web Console (Local Dev)
+
+- Boot the stack: `docker compose up -d api staff`
+- Visit the staff UI at [http://localhost:5174](http://localhost:5174).
+- Sign in with an employee role (e.g. the seeded superadmin `admin@eipr.local / admin123`).
+- The app consumes the same FastAPI backend at `http://localhost:8000/api/v1` and blocks pet-parent accounts from logging in.
+
+The existing customer portal remains available at [http://localhost:5173](http://localhost:5173).
+
 ## Running Tests
 
 With the virtual environment active, install dev dependencies and execute the suite:

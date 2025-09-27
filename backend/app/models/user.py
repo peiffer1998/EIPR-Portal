@@ -10,6 +10,7 @@ from sqlalchemy import Boolean, Enum, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.security.encryption import EncryptedStr
 from app.models.mixins import TimestampMixin
 
 
@@ -47,11 +48,11 @@ class User(TimestampMixin, Base):
     account_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False
     )
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(EncryptedStr(768), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    first_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    last_name: Mapped[str] = mapped_column(String(120), nullable=False)
-    phone_number: Mapped[str | None] = mapped_column(String(32))
+    first_name: Mapped[str] = mapped_column(EncryptedStr(256), nullable=False)
+    last_name: Mapped[str] = mapped_column(EncryptedStr(256), nullable=False)
+    phone_number: Mapped[str | None] = mapped_column(EncryptedStr(256))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus), default=UserStatus.INVITED, nullable=False

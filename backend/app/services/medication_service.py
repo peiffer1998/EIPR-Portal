@@ -1,4 +1,5 @@
 """Medication schedule services."""
+
 from __future__ import annotations
 
 import uuid
@@ -38,7 +39,9 @@ async def list_medication_schedules(
     account_id: uuid.UUID,
     reservation_id: uuid.UUID,
 ) -> list[MedicationSchedule]:
-    await _ensure_reservation(session, account_id=account_id, reservation_id=reservation_id)
+    await _ensure_reservation(
+        session, account_id=account_id, reservation_id=reservation_id
+    )
     stmt: Select[tuple[MedicationSchedule]] = (
         select(MedicationSchedule)
         .where(MedicationSchedule.reservation_id == reservation_id)
@@ -58,7 +61,9 @@ async def get_medication_schedule(
         select(MedicationSchedule)
         .join(Reservation)
         .options(selectinload(MedicationSchedule.reservation))
-        .where(MedicationSchedule.id == schedule_id, Reservation.account_id == account_id)
+        .where(
+            MedicationSchedule.id == schedule_id, Reservation.account_id == account_id
+        )
     )
     result = await session.execute(stmt)
     return result.scalars().unique().one_or_none()
@@ -70,7 +75,9 @@ async def create_medication_schedule(
     *,
     account_id: uuid.UUID,
 ) -> MedicationSchedule:
-    await _ensure_reservation(session, account_id=account_id, reservation_id=payload.reservation_id)
+    await _ensure_reservation(
+        session, account_id=account_id, reservation_id=payload.reservation_id
+    )
     schedule = MedicationSchedule(
         reservation_id=payload.reservation_id,
         scheduled_at=_coerce_utc(payload.scheduled_at),

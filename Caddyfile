@@ -1,0 +1,19 @@
+{
+  email you@example.com
+  auto_https off
+}
+
+:80 {
+  encode gzip
+
+  @health path /health /api/v1/health
+  respond @health 200
+
+  handle /api/* {
+    reverse_proxy api:8000
+  }
+
+  handle {
+    reverse_proxy portal:5173
+  }
+}

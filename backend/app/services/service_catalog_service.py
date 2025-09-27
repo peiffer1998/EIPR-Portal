@@ -1,4 +1,5 @@
 """Operations for the service catalog."""
+
 from __future__ import annotations
 
 import uuid
@@ -8,7 +9,10 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.service_catalog_item import ServiceCatalogItem, ServiceCatalogKind
-from app.schemas.service_catalog import ServiceCatalogItemCreate, ServiceCatalogItemUpdate
+from app.schemas.service_catalog import (
+    ServiceCatalogItemCreate,
+    ServiceCatalogItemUpdate,
+)
 
 
 async def list_items(
@@ -54,7 +58,9 @@ async def create_item(
         kind=payload.kind,
         reservation_type=payload.reservation_type,
         duration_minutes=payload.duration_minutes,
-        base_price=Decimal(str(payload.base_price)) if payload.base_price is not None else None,
+        base_price=(
+            Decimal(str(payload.base_price)) if payload.base_price is not None else None
+        ),
         active=payload.active,
         sku=payload.sku,
     )

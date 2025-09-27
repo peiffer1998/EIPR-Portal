@@ -25,6 +25,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
+from app.security.encryption import EncryptedStr
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from app.models import Account, Invoice, OwnerProfile, Reservation
@@ -167,7 +168,7 @@ class GiftCertificate(TimestampMixin, Base):
     recipient_owner_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("owner_profiles.id", ondelete="SET NULL"), nullable=True
     )
-    recipient_email: Mapped[str | None] = mapped_column(String(255))
+    recipient_email: Mapped[str | None] = mapped_column(EncryptedStr(512))
     expires_on: Mapped[Optional[date]] = mapped_column(Date)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

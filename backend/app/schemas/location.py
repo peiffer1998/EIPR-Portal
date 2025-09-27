@@ -1,4 +1,5 @@
 """Location schemas for CRUD operations."""
+
 from __future__ import annotations
 
 import uuid

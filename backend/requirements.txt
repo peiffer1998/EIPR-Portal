@@ -1,2 +1,7 @@
 PyMySQL>=1.1.0
 PyYAML>=6.0
+cryptography>=42.0.0
+secure>=0.3.0
+fastapi-limiter>=0.1.6
+asgi-correlation-id>=4.3.0
+redis>=5.0.0

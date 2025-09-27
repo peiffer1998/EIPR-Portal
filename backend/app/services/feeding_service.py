@@ -1,4 +1,5 @@
 """Feeding schedule services."""
+
 from __future__ import annotations
 
 import uuid
@@ -38,7 +39,9 @@ async def list_feeding_schedules(
     account_id: uuid.UUID,
     reservation_id: uuid.UUID,
 ) -> list[FeedingSchedule]:
-    await _ensure_reservation(session, account_id=account_id, reservation_id=reservation_id)
+    await _ensure_reservation(
+        session, account_id=account_id, reservation_id=reservation_id
+    )
     stmt: Select[tuple[FeedingSchedule]] = (
         select(FeedingSchedule)
         .where(FeedingSchedule.reservation_id == reservation_id)
@@ -70,7 +73,9 @@ async def create_feeding_schedule(
     *,
     account_id: uuid.UUID,
 ) -> FeedingSchedule:
-    await _ensure_reservation(session, account_id=account_id, reservation_id=payload.reservation_id)
+    await _ensure_reservation(
+        session, account_id=account_id, reservation_id=payload.reservation_id
+    )
     schedule = FeedingSchedule(
         reservation_id=payload.reservation_id,
         scheduled_at=_coerce_utc(payload.scheduled_at),

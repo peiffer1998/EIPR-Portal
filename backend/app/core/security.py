@@ -3,23 +3,25 @@
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 
 from app.core.config import get_settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 settings = get_settings()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Check a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Check a password against its hash using bcrypt."""
+    try:
+        return bcrypt.checkpw(plain_password.encode(), hashed_password.encode())
+    except (ValueError, TypeError):  # guard against malformed hashes
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a password for storage."""
-    return pwd_context.hash(password)
+    """Hash a password for storage using bcrypt."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def create_access_token(

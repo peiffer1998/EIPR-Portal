@@ -1,4 +1,5 @@
 """Location capacity management API."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,7 +23,9 @@ router = APIRouter(prefix="/locations/{location_id}/capacity-rules")
 
 def _assert_management_role(user: User) -> None:
     if user.role not in {UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
 @router.get(
@@ -43,7 +46,9 @@ async def list_capacity_rules(
             location_id=location_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return [LocationCapacityRuleRead.model_validate(rule) for rule in rules]
 
 
@@ -61,7 +66,9 @@ async def create_capacity_rule(
 ) -> LocationCapacityRuleRead:
     _assert_management_role(current_user)
     if payload.location_id != location_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Location mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Location mismatch"
+        )
     try:
         rule = await capacity_service.create_capacity_rule(
             session,
@@ -72,9 +79,14 @@ async def create_capacity_rule(
             waitlist_limit=payload.waitlist_limit,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rule already exists for reservation type") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Rule already exists for reservation type",
+        ) from exc
     return LocationCapacityRuleRead.model_validate(rule)
 
 
@@ -97,7 +109,9 @@ async def update_capacity_rule(
         rule_id=rule_id,
     )
     if rule is None or rule.location_id != location_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found"
+        )
 
     try:
         updated = await capacity_service.update_capacity_rule(
@@ -108,7 +122,9 @@ async def update_capacity_rule(
             waitlist_limit=payload.waitlist_limit,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     return LocationCapacityRuleRead.model_validate(updated)
 
 
@@ -130,7 +146,9 @@ async def delete_capacity_rule(
         rule_id=rule_id,
     )
     if rule is None or rule.location_id != location_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Capacity rule not found"
+        )
     await capacity_service.delete_capacity_rule(
         session,
         rule=rule,

@@ -1,4 +1,5 @@
 """Schemas for service catalog items."""
+
 from __future__ import annotations
 
 import uuid

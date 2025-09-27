@@ -5,49 +5,77 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from secure import Secure
+from asgi_correlation_id import CorrelationIdMiddleware
+from fastapi_limiter import FastAPILimiter
 
 from app.api import api_router
 from app.core.config import get_settings
+from app.security.logging_filters import SensitiveFilter
 from app.services.bootstrap_service import ensure_default_admin
 
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-default_origin_regex = settings.cors_allow_origin_regex
-if default_origin_regex is None and settings.app_env.lower() == "local":
-    # Permit common localhost/private-network origins during local development.
-    default_origin_regex = (
-        r"http://("  # noqa: E501 - regex kept readable for future tweaks
-        r"localhost|"
-        r"127\.0\.0\.1|"
-        r"10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|"
-        r"192\.168\.[0-9]{1,3}\.[0-9]{1,3}|"
-        r"172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}"
-        r")(?:\:[0-9]{2,5})?$"
-    )
-
-allow_origins = settings.cors_allow_origins or ["*"]
+_ALLOWED_ORIGINS = [origin for origin in settings.cors_allowlist if origin]
+if not _ALLOWED_ORIGINS:
+    _ALLOWED_ORIGINS = [origin for origin in settings.cors_allow_origins if origin]
+if not _ALLOWED_ORIGINS:
+    _ALLOWED_ORIGINS = ["http://localhost:5173"]
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    redis_url = settings.redis_url or "redis://redis:6379/0"
+    try:
+        await FastAPILimiter.init(redis_url)
+        FastAPILimiter.default_limits = [settings.rate_limit_default]
+    except Exception:  # pragma: no cover - limiter startup is best effort
+        logger.exception("Failed to initialize rate limiter")
     try:
         await ensure_default_admin()
     except Exception:  # pragma: no cover - best effort bootstrap
         logger.exception("Failed to ensure default admin account")
-    yield
+    try:
+        yield
+    finally:
+        try:
+            await FastAPILimiter.close()
+        except Exception:  # pragma: no cover - limiter shutdown
+            logger.exception("Failed to close rate limiter")
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_origin_regex=default_origin_regex,
+    allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
+app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")
+
+_secure_headers = Secure()
+
+
+@app.middleware("http")
+async def _apply_security_headers(request, call_next):
+    response = await call_next(request)
+    _secure_headers.set_headers(response)
+    correlation_id = getattr(request.state, "correlation_id", None)
+    if correlation_id:
+        response.headers.setdefault("X-Request-ID", str(correlation_id))
+    return response
+
+
+for _logger_name in ("uvicorn", "uvicorn.access", "uvicorn.error", ""):
+    _logger = logging.getLogger(_logger_name)
+    if not any(isinstance(flt, SensitiveFilter) for flt in _logger.filters):
+        _logger.addFilter(SensitiveFilter())
+
 app.include_router(api_router)
 
 

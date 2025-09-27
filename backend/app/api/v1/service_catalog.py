@@ -1,4 +1,5 @@
 """Service catalog endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -23,10 +24,14 @@ router = APIRouter(prefix="/service-items")
 
 def _assert_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
-@router.get("", response_model=list[ServiceCatalogItemRead], summary="List catalog items")
+@router.get(
+    "", response_model=list[ServiceCatalogItemRead], summary="List catalog items"
+)
 async def list_catalog_items(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
@@ -41,7 +46,12 @@ async def list_catalog_items(
     return [ServiceCatalogItemRead.model_validate(item) for item in items]
 
 
-@router.post("", response_model=ServiceCatalogItemRead, status_code=status.HTTP_201_CREATED, summary="Create catalog item")
+@router.post(
+    "",
+    response_model=ServiceCatalogItemRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create catalog item",
+)
 async def create_catalog_item(
     payload: ServiceCatalogItemCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -49,7 +59,10 @@ async def create_catalog_item(
 ) -> ServiceCatalogItemRead:
     _assert_staff(current_user)
     if payload.kind == ServiceCatalogKind.SERVICE and payload.reservation_type is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="reservation_type required for services")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="reservation_type required for services",
+        )
     try:
         item = await service_catalog_service.create_item(
             session,
@@ -57,11 +70,15 @@ async def create_catalog_item(
             payload=payload,
         )
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate SKU") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate SKU"
+        ) from exc
     return ServiceCatalogItemRead.model_validate(item)
 
 
-@router.get("/{item_id}", response_model=ServiceCatalogItemRead, summary="Get catalog item")
+@router.get(
+    "/{item_id}", response_model=ServiceCatalogItemRead, summary="Get catalog item"
+)
 async def get_catalog_item(
     item_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -74,11 +91,15 @@ async def get_catalog_item(
         item_id=item_id,
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+        )
     return ServiceCatalogItemRead.model_validate(item)
 
 
-@router.patch("/{item_id}", response_model=ServiceCatalogItemRead, summary="Update catalog item")
+@router.patch(
+    "/{item_id}", response_model=ServiceCatalogItemRead, summary="Update catalog item"
+)
 async def update_catalog_item(
     item_id: uuid.UUID,
     payload: ServiceCatalogItemUpdate,
@@ -92,15 +113,23 @@ async def update_catalog_item(
         item_id=item_id,
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+        )
     try:
-        updated = await service_catalog_service.update_item(session, item=item, payload=payload)
+        updated = await service_catalog_service.update_item(
+            session, item=item, payload=payload
+        )
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate SKU") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Duplicate SKU"
+        ) from exc
     return ServiceCatalogItemRead.model_validate(updated)
 
 
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete catalog item")
+@router.delete(
+    "/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete catalog item"
+)
 async def delete_catalog_item(
     item_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -113,6 +142,8 @@ async def delete_catalog_item(
         item_id=item_id,
     )
     if item is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Item not found"
+        )
     await service_catalog_service.delete_item(session, item=item)
     return None

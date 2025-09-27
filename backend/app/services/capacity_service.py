@@ -1,4 +1,5 @@
 """Location capacity management services."""
+
 from __future__ import annotations
 
 import uuid
@@ -19,7 +20,9 @@ async def list_capacity_rules(
     location_id: uuid.UUID,
 ) -> list[LocationCapacityRule]:
     """Return all capacity rules for a location scoped to an account."""
-    await _ensure_location_access(session, account_id=account_id, location_id=location_id)
+    await _ensure_location_access(
+        session, account_id=account_id, location_id=location_id
+    )
     result = await session.execute(
         select(LocationCapacityRule)
         .where(LocationCapacityRule.location_id == location_id)
@@ -53,7 +56,9 @@ async def create_capacity_rule(
     waitlist_limit: int | None,
 ) -> LocationCapacityRule:
     """Create a new capacity rule for a location."""
-    await _ensure_location_access(session, account_id=account_id, location_id=location_id)
+    await _ensure_location_access(
+        session, account_id=account_id, location_id=location_id
+    )
     rule = LocationCapacityRule(
         location_id=location_id,
         reservation_type=reservation_type,
@@ -79,7 +84,9 @@ async def update_capacity_rule(
     waitlist_limit: int | None,
 ) -> LocationCapacityRule:
     """Update an existing capacity rule."""
-    await _ensure_location_access(session, account_id=account_id, location_id=rule.location_id)
+    await _ensure_location_access(
+        session, account_id=account_id, location_id=rule.location_id
+    )
     rule.max_active = max_active
     rule.waitlist_limit = waitlist_limit
     await session.commit()
@@ -94,7 +101,9 @@ async def delete_capacity_rule(
     account_id: uuid.UUID,
 ) -> None:
     """Remove a capacity rule."""
-    await _ensure_location_access(session, account_id=account_id, location_id=rule.location_id)
+    await _ensure_location_access(
+        session, account_id=account_id, location_id=rule.location_id
+    )
     await session.delete(rule)
     await session.commit()
 

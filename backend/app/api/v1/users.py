@@ -1,4 +1,5 @@
 """User management endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -33,25 +34,33 @@ _ROLE_PRIORITY: dict[UserRole, int] = {
 def _assert_manage_users_permission(user: User) -> None:
     """Ensure the user can manage other accounts."""
     if user.role not in {UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
 def _assert_assignable_role(actor: User, target_role: UserRole) -> None:
     if actor.role == UserRole.SUPERADMIN:
         return
     if _ROLE_PRIORITY[target_role] > _ROLE_PRIORITY[actor.role]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign higher role")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Cannot assign higher role"
+        )
 
 
 def _assert_can_manage_target(actor: User, target: User) -> None:
     if actor.role == UserRole.SUPERADMIN:
         return
     if actor.account_id != target.account_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     if target.id == actor.id:
         return
     if _ROLE_PRIORITY[target.role] >= _ROLE_PRIORITY[actor.role]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
 @router.get("/me", response_model=UserRead, summary="Current user profile")
@@ -80,7 +89,12 @@ async def list_users(
     return [UserRead.model_validate(obj) for obj in users]
 
 
-@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary="Create user")
+@router.post(
+    "",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create user",
+)
 async def create_user(
     payload: UserCreate,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -88,13 +102,20 @@ async def create_user(
 ) -> UserRead:
     """Create a new user within the same account."""
     _assert_manage_users_permission(current_user)
-    if payload.account_id != current_user.account_id and current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Account mismatch")
+    if (
+        payload.account_id != current_user.account_id
+        and current_user.role != UserRole.SUPERADMIN
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Account mismatch"
+        )
     _assert_assignable_role(current_user, payload.role)
     try:
         user = await user_service.create_user(session, payload)
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already in use"
+        ) from exc
     return UserRead.model_validate(user)
 
 
@@ -108,9 +129,16 @@ async def read_user(
     _assert_manage_users_permission(current_user)
     user = await user_service.get_user(session, user_id=user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if current_user.role != UserRole.SUPERADMIN and user.account_id != current_user.account_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+    if (
+        current_user.role != UserRole.SUPERADMIN
+        and user.account_id != current_user.account_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return UserRead.model_validate(user)
 
 
@@ -124,16 +152,22 @@ async def update_user_endpoint(
     _assert_manage_users_permission(current_user)
     user = await user_service.get_user(session, user_id=user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     _assert_can_manage_target(current_user, user)
     if payload.role is not None:
         if user.id == current_user.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change own role")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change own role"
+            )
         _assert_assignable_role(current_user, payload.role)
     try:
         updated = await user_service.update_user(session, user, payload)
     except IntegrityError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to update user") from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unable to update user"
+        ) from exc
     return UserRead.model_validate(updated)
 
 
@@ -177,7 +211,9 @@ async def invite_staff_member(
             expires_in_hours=payload.expires_in_hours,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     inviter_name = f"{current_user.first_name} {current_user.last_name}".strip()
     subject, body = notification_service.build_staff_invitation_email(

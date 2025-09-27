@@ -4,10 +4,20 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
 
 from app.api.deps import get_db_session
 from app.models.account import Account
@@ -24,6 +34,7 @@ from app.schemas.auth import (
 )
 from app.schemas.owner import OwnerRead
 from app.schemas.user import UserRead
+from app.core.config import get_settings
 from app.services import (
     audit_service,
     notification_service,
@@ -36,6 +47,50 @@ from app.services.auth_service import authenticate_user, create_access_token_for
 
 router = APIRouter()
 
+_settings = get_settings()
+
+_DEF_LIMITS = _settings.rate_limit_default
+_LOGIN_LIMITS = _settings.rate_limit_login
+
+
+def _parse_rate(value: str, *, fallback: tuple[int, int]) -> tuple[int, int]:
+    try:
+        count_str, window_str = value.split("/", 1)
+        count = int(count_str.strip())
+    except Exception:
+        return fallback
+    window = window_str.strip().lower()
+    seconds_map = {
+        "second": 1,
+        "seconds": 1,
+        "minute": 60,
+        "minutes": 60,
+        "hour": 3600,
+        "hours": 3600,
+        "day": 86400,
+        "days": 86400,
+    }
+    seconds = seconds_map.get(window, fallback[1])
+    return count, seconds
+
+
+_LOGIN_LIMIT = _parse_rate(_LOGIN_LIMITS, fallback=(10, 60))
+_DEFAULT_LIMIT = _parse_rate(_DEF_LIMITS, fallback=(100, 60))
+
+
+def _rate_dependency(limit: tuple[int, int]):
+    async def _dependency(request: Request, response: Response) -> None:
+        if FastAPILimiter.redis is None:
+            return None
+        limiter = RateLimiter(times=limit[0], seconds=limit[1])
+        await limiter(request, response)
+
+    return Depends(_dependency)
+
+
+_LOGIN_RATE_DEP = _rate_dependency(_LOGIN_LIMIT)
+_DEFAULT_RATE_DEP = _rate_dependency(_DEFAULT_LIMIT)
+
 
 def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
@@ -45,7 +100,12 @@ def _event_payload_for_user(user: User) -> dict[str, str]:
     return {"user_id": str(user.id), "email": user.email}
 
 
-@router.post("/token", response_model=Token, summary="Obtain access token")
+@router.post(
+    "/token",
+    response_model=Token,
+    summary="Obtain access token",
+    dependencies=[_LOGIN_RATE_DEP],
+)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     session: Annotated[AsyncSession, Depends(get_db_session)],
@@ -79,6 +139,7 @@ async def login_for_access_token(
     response_model=RegistrationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register pet parent",
+    dependencies=[_DEFAULT_RATE_DEP],
 )
 async def register_owner(
     payload: RegistrationRequest,
@@ -149,6 +210,7 @@ async def register_owner(
     "/password-reset/request",
     response_model=PasswordResetTokenResponse,
     summary="Request password reset",
+    dependencies=[_DEFAULT_RATE_DEP],
 )
 async def password_reset_request(
     payload: PasswordResetRequest,

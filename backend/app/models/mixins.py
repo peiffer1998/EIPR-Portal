@@ -1,4 +1,5 @@
 """Common ORM mixins."""
+
 from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, func

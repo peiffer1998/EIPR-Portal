@@ -1,4 +1,5 @@
 """Medication schedule API endpoints."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,10 +22,14 @@ router = APIRouter(prefix="/reservations/{reservation_id}/medication-schedules")
 
 def _assert_staff(user: User) -> None:
     if user.role == UserRole.PET_PARENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
 
 
-@router.get("", response_model=list[MedicationScheduleRead], summary="List medication schedules")
+@router.get(
+    "", response_model=list[MedicationScheduleRead], summary="List medication schedules"
+)
 async def list_medication_schedules(
     reservation_id: uuid.UUID,
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
@@ -38,7 +43,9 @@ async def list_medication_schedules(
             reservation_id=reservation_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return [MedicationScheduleRead.model_validate(obj) for obj in schedules]
 
 
@@ -56,7 +63,9 @@ async def create_medication_schedule(
 ) -> MedicationScheduleRead:
     _assert_staff(current_user)
     if payload.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reservation mismatch")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Reservation mismatch"
+        )
     try:
         schedule = await medication_service.create_medication_schedule(
             session,
@@ -64,7 +73,9 @@ async def create_medication_schedule(
             account_id=current_user.account_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     return MedicationScheduleRead.model_validate(schedule)
 
 
@@ -87,7 +98,10 @@ async def update_medication_schedule(
         schedule_id=schedule_id,
     )
     if schedule is None or schedule.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medication schedule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication schedule not found",
+        )
     try:
         updated = await medication_service.update_medication_schedule(
             session,
@@ -96,7 +110,9 @@ async def update_medication_schedule(
             payload=payload,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
     return MedicationScheduleRead.model_validate(updated)
 
 
@@ -118,7 +134,10 @@ async def delete_medication_schedule(
         schedule_id=schedule_id,
     )
     if schedule is None or schedule.reservation_id != reservation_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medication schedule not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Medication schedule not found",
+        )
     await medication_service.delete_medication_schedule(
         session,
         schedule=schedule,

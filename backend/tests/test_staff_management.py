@@ -1,4 +1,5 @@
 """Staff role management tests."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -19,7 +20,9 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-async def test_superadmin_can_invite_and_accept_staff(app_context: dict[str, Any]) -> None:
+async def test_superadmin_can_invite_and_accept_staff(
+    app_context: dict[str, Any],
+) -> None:
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     superadmin_email = app_context["superadmin_email"]
     superadmin_password = app_context["superadmin_password"]
@@ -79,7 +82,9 @@ async def test_superadmin_can_change_user_role(app_context: dict[str, Any]) -> N
     users_resp = await client.get("/api/v1/users", headers=headers)
     assert users_resp.status_code == 200
     users = users_resp.json()
-    manager = next(user for user in users if user["email"] == app_context["manager_email"])
+    manager = next(
+        user for user in users if user["email"] == app_context["manager_email"]
+    )
 
     update_resp = await client.patch(
         f"/api/v1/users/{manager['id']}",

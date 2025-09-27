@@ -5,7 +5,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.schemas.user import _validate_relaxed_email
 
 from app.models.reservation import ReservationType
 from app.schemas.user import UserRead
@@ -17,7 +19,13 @@ class OwnerBase(BaseModel):
 
     first_name: str
     last_name: str
-    email: EmailStr
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, value: str) -> str:
+        return _validate_relaxed_email(value)
+
     phone_number: str | None = None
     preferred_contact_method: str | None = None
     notes: str | None = None

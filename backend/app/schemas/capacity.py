@@ -1,4 +1,5 @@
 """Schemas for location capacity management."""
+
 from __future__ import annotations
 
 import uuid
