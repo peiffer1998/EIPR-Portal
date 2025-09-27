@@ -18,6 +18,7 @@ from app.schemas.reservation import (
     ReservationCheckInRequest,
     ReservationCheckOutRequest,
     ReservationCreate,
+    ReservationMoveRunRequest,
     ReservationRead,
     ReservationUpdate,
 )
@@ -150,6 +151,46 @@ async def update_reservation(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    return ReservationRead.model_validate(updated)
+
+
+@router.post(
+    "/{reservation_id}/move-run",
+    response_model=ReservationRead,
+    summary="Assign reservation to a lodging run",
+)
+async def move_reservation_run(
+    reservation_id: uuid.UUID,
+    payload: ReservationMoveRunRequest,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> ReservationRead:
+    _assert_staff_authority(current_user)
+    reservation = await reservation_service.get_reservation(
+        session,
+        account_id=current_user.account_id,
+        reservation_id=reservation_id,
+    )
+    if reservation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Reservation not found"
+        )
+
+    kennel_uuid: uuid.UUID | None
+    if payload.run_id:
+        try:
+            kennel_uuid = uuid.UUID(payload.run_id)
+        except ValueError:
+            kennel_uuid = None
+    else:
+        kennel_uuid = None
+
+    updated = await reservation_service.update_reservation(
+        session,
+        reservation=reservation,
+        account_id=current_user.account_id,
+        kennel_id=kennel_uuid,
+    )
     return ReservationRead.model_validate(updated)
 
 

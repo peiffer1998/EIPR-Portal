@@ -5,7 +5,10 @@ from __future__ import annotations
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+from app.models.payment import PaymentTransactionStatus
 
 
 class PaymentIntentCreateRequest(BaseModel):
@@ -33,3 +36,18 @@ class PaymentRefundResponse(BaseModel):
 
     status: str
     amount: Decimal | None = None
+
+
+class PaymentTransactionRead(BaseModel):
+    id: UUID
+    invoice_id: UUID
+    owner_id: UUID
+    provider: str
+    amount: Decimal
+    currency: str
+    status: PaymentTransactionStatus
+    failure_reason: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

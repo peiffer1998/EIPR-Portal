@@ -30,12 +30,17 @@ async def list_invitations(
     session: AsyncSession,
     *,
     account_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 200,
 ) -> list[StaffInvitation]:
     """Return invitations for an account ordered by creation time."""
+    limit = max(1, min(limit, 500))
     stmt = (
         select(StaffInvitation)
         .where(StaffInvitation.account_id == account_id)
         .order_by(StaffInvitation.created_at.desc())
+        .offset(max(0, skip))
+        .limit(limit)
     )
     result = await session.execute(stmt)
     return list(result.scalars().unique().all())

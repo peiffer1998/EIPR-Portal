@@ -59,7 +59,7 @@ export async function deleteServiceItem(id: string) {
 
 export async function listPackageDefs(params?: any) {
   try {
-    return await ok<any[]>(api.get("/packages/defs", { params }));
+    return await ok<any[]>(api.get("/store/package-types", { params }));
   } catch {
     return await ok<any[]>(api.get("/packages", { params }));
   }
@@ -75,7 +75,7 @@ export async function createPackageDef(payload: {
   reservation_type?: "boarding" | "daycare" | "grooming";
 }) {
   try {
-    return await ok<any>(api.post("/packages/defs", payload));
+    return await ok<any>(api.post("/store/package-types", payload));
   } catch {
     return await ok<any>(api.post("/packages", payload));
   }
@@ -94,7 +94,7 @@ export async function updatePackageDef(
   }>,
 ) {
   try {
-    return await ok<any>(api.patch(`/packages/defs/${id}`, patch));
+    return await ok<any>(api.patch(`/store/package-types/${id}`, patch));
   } catch {
     return await ok<any>(api.patch(`/packages/${id}`, patch));
   }
@@ -102,7 +102,7 @@ export async function updatePackageDef(
 
 export async function deletePackageDef(id: string) {
   try {
-    await api.delete(`/packages/defs/${id}`);
+    await api.delete(`/store/package-types/${id}`);
     return true;
   } catch {
     try {

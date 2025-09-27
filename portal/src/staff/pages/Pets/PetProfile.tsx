@@ -80,6 +80,10 @@ export default function PetProfile() {
   if (pet.isError) return <div className="text-red-600 text-sm">Failed to load pet</div>;
 
   const p: any = pet.data || {};
+  const owner = p.owner || {};
+  const ownerId = owner.id || p.owner_id;
+  const ownerName = [owner.first_name, owner.last_name].filter(Boolean).join(" ") || owner.email || ownerId || "—";
+  const typeLabel = (p.pet_type || p.species || "").replace(/_/g, " ");
 
   return (
     <div className="grid gap-4">
@@ -90,7 +94,7 @@ export default function PetProfile() {
         fields={[
           { name: "name", label: "Name" },
           { name: "breed", label: "Breed" },
-          { name: "species", label: "Species" },
+          { name: "pet_type", label: "Type" },
           { name: "color", label: "Color" },
           { name: "sex", label: "Sex" },
           { name: "weight", label: "Weight" },
@@ -104,15 +108,13 @@ export default function PetProfile() {
       <div className="bg-white p-6 rounded-xl shadow">
         <h3 className="text-xl font-semibold mb-1">{p.name}</h3>
         <div className="text-sm text-slate-600">
-          {p.breed || p.species} • {p.color} • {p.sex}
+          {[p.breed, typeLabel, p.color].filter(Boolean).join(" • ") || "—"}
         </div>
-        {p.owner_id ? (
+        {ownerId ? (
           <div className="text-sm mt-2">
             Owner {" "}
-            <Link className="text-blue-700" to={`/staff/customers/${p.owner_id}`}>
-              {p.owner?.first_name && p.owner?.last_name
-                ? `${p.owner.first_name} ${p.owner.last_name}`
-                : p.owner_id}
+            <Link className="text-blue-700" to={`/staff/customers/${ownerId}`}>
+              {ownerName}
             </Link>
           </div>
         ) : null}

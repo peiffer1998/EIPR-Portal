@@ -6,7 +6,14 @@ from decimal import Decimal
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,15 +22,20 @@ from app.models.reservation import ReservationStatus
 from app.models.user import User, UserRole
 from app.schemas.owner import (
     OwnerCreate,
+    OwnerNoteCreate,
+    OwnerNoteRead,
     OwnerRead,
     OwnerUpdate,
     OwnerReservationRequest,
 )
 from app.schemas.reservation import ReservationRead
+from app.schemas.store import MembershipRead, PackageBalanceRead
 from app.security.permissions import require_roles
 from app.services import (
     notification_service,
+    note_buffer,
     owner_service,
+    packages_service,
     pet_service,
     reservation_service,
 )
@@ -49,6 +61,7 @@ async def list_owners(
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
     skip: int = 0,
     limit: int = 50,
+    q: str | None = Query(default=None, alias="q"),
 ) -> list[OwnerRead]:
     """Return owners for the authenticated user's account."""
     _assert_staff_authority(current_user)
@@ -57,6 +70,7 @@ async def list_owners(
         account_id=current_user.account_id,
         skip=skip,
         limit=min(limit, 100),
+        search=q,
     )
     return [OwnerRead.model_validate(owner) for owner in owners]
 
@@ -105,6 +119,108 @@ async def get_owner(
             status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
         )
     return OwnerRead.model_validate(owner)
+
+
+@router.get(
+    "/{owner_id}/memberships",
+    response_model=list[MembershipRead],
+    summary="List memberships for an owner",
+)
+async def list_owner_memberships(
+    owner_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> list[MembershipRead]:
+    """Placeholder owner memberships endpoint."""
+    _assert_staff_authority(current_user)
+    _ = owner_id  # acknowledged
+    return []
+
+
+@router.get(
+    "/{owner_id}/notes",
+    response_model=list[OwnerNoteRead],
+    summary="List notes for an owner",
+)
+async def list_owner_notes(
+    owner_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> list[OwnerNoteRead]:
+    owner = await owner_service.get_owner(
+        session,
+        account_id=current_user.account_id,
+        owner_id=owner_id,
+    )
+    if owner is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
+    if current_user.role == UserRole.PET_PARENT and owner.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
+    entries = note_buffer.list_owner_notes(owner_id)
+    return [OwnerNoteRead.model_validate(entry) for entry in entries]
+
+
+@router.post(
+    "/{owner_id}/notes",
+    response_model=OwnerNoteRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a note for an owner",
+)
+async def add_owner_note(
+    owner_id: uuid.UUID,
+    payload: OwnerNoteCreate,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> OwnerNoteRead:
+    _assert_staff_authority(current_user)
+    owner = await owner_service.get_owner(
+        session,
+        account_id=current_user.account_id,
+        owner_id=owner_id,
+    )
+    if owner is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
+    note = note_buffer.add_owner_note(
+        owner_id,
+        text=payload.text,
+        author_id=current_user.id,
+    )
+    return OwnerNoteRead.model_validate(note)
+
+
+@router.get(
+    "/{owner_id}/packages",
+    response_model=list[PackageBalanceRead],
+    summary="List remaining package balances for an owner",
+)
+async def list_owner_packages(
+    owner_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> list[PackageBalanceRead]:
+    """Return aggregated package balances for a specific owner."""
+    _assert_staff_authority(current_user)
+    owner = await owner_service.get_owner(
+        session,
+        account_id=current_user.account_id,
+        owner_id=owner_id,
+    )
+    if owner is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Owner not found"
+        )
+    balances = await packages_service.remaining_credits(
+        session,
+        owner_id=owner.id,
+        account_id=current_user.account_id,
+    )
+    return [PackageBalanceRead.model_validate(balance) for balance in balances]
 
 
 @router.patch("/{owner_id}", response_model=OwnerRead, summary="Update owner")

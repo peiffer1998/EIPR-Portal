@@ -5,7 +5,14 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    status,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,11 +186,15 @@ async def update_user_endpoint(
 async def list_staff_invitations(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    skip: int = 0,
+    limit: int = Query(default=200, ge=1, le=500),
 ) -> list[StaffInvitationRead]:
     _assert_manage_users_permission(current_user)
     invitations = await staff_invitation_service.list_invitations(
         session,
         account_id=current_user.account_id,
+        skip=skip,
+        limit=limit,
     )
     return [StaffInvitationRead.model_validate(inv) for inv in invitations]
 

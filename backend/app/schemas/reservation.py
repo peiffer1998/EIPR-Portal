@@ -13,6 +13,15 @@ from app.schemas.feeding import FeedingScheduleRead
 from app.schemas.medication import MedicationScheduleRead
 
 
+class PetSummary(BaseModel):
+    """Lightweight representation of a pet for reservation listings."""
+
+    id: uuid.UUID
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ReservationBase(BaseModel):
     """Shared reservation fields."""
 
@@ -58,6 +67,7 @@ class ReservationRead(ReservationBase):
     updated_at: datetime
     feeding_schedules: list[FeedingScheduleRead] = Field(default_factory=list)
     medication_schedules: list[MedicationScheduleRead] = Field(default_factory=list)
+    pet: PetSummary | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,3 +95,9 @@ class ReservationCheckOutRequest(BaseModel):
         if ts.tzinfo is None:
             return ts.replace(tzinfo=timezone.utc)
         return ts.astimezone(timezone.utc)
+
+
+class ReservationMoveRunRequest(BaseModel):
+    """Payload for assigning a reservation to a lodging run."""
+
+    run_id: str | None = None

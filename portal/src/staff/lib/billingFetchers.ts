@@ -9,11 +9,20 @@ export type InvoiceLinePayload = {
   taxable: boolean;
 };
 
-export async function listInvoices(params: Record<string, unknown>) {
+export type InvoiceListResult = {
+  items: any[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export async function listInvoices(params: Record<string, unknown>): Promise<InvoiceListResult> {
   try {
-    return await ok<any[]>(api.get("/invoices", { params }));
+    return await ok<InvoiceListResult>(api.get("/invoices", { params }));
   } catch {
-    return [] as any[];
+    const rawLimit = Number((params as any)?.limit ?? 0);
+    const rawOffset = Number((params as any)?.offset ?? 0);
+    return { items: [], total: 0, limit: rawLimit || 0, offset: rawOffset || 0 };
   }
 }
 

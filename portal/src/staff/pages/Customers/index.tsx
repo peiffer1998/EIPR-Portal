@@ -28,17 +28,30 @@ export default function CustomersList() {
           </tr>
         </thead>
         <tbody>
-          {(owners.data || []).map((o: any) => (
-            <tr key={o.id} className="border-t hover:bg-slate-50">
-              <td className="py-2">
-                <Link to={`/staff/customers/${o.id}`} className="text-blue-700">
-                  {o.first_name} {o.last_name}
-                </Link>
+          {(owners.data || []).map((o: any) => {
+            const user = o.user ?? {};
+            const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ") || "—";
+            const email = user.email ?? o.email ?? "—";
+            const phone = user.phone_number ?? o.phone ?? "—";
+            return (
+              <tr key={o.id} className="border-t hover:bg-slate-50">
+                <td className="py-2">
+                  <Link to={`/staff/customers/${o.id}`} className="text-blue-700">
+                    {fullName}
+                  </Link>
+                </td>
+                <td>{email}</td>
+                <td>{phone}</td>
+              </tr>
+            );
+          })}
+          {owners.isSuccess && !owners.data?.length ? (
+            <tr className="border-t">
+              <td colSpan={3} className="py-6 text-center text-slate-400">
+                No customers found.
               </td>
-              <td>{o.email}</td>
-              <td>{o.phone}</td>
             </tr>
-          ))}
+          ) : null}
         </tbody>
       </table>
     </div>

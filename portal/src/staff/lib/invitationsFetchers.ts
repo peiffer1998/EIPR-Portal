@@ -18,13 +18,9 @@ export type Invite = {
 
 export async function listInvitations(params?: Record<string, unknown>): Promise<Invite[]> {
   try {
-    return await ok<Invite[]>(api.get("/auth/invitations", { params }));
+    return await ok<Invite[]>(api.get("/users/invitations", { params }));
   } catch {
-    try {
-      return await ok<Invite[]>(api.get("/users/invitations", { params }));
-    } catch {
-      return [];
-    }
+    return [];
   }
 }
 
@@ -37,25 +33,25 @@ export async function createInvitation(payload: {
   expires_days?: number;
 }): Promise<Invite> {
   try {
-    return await ok<Invite>(api.post("/auth/invitations", payload));
-  } catch {
     return await ok<Invite>(api.post("/users/invitations", payload));
+  } catch {
+    return await ok<Invite>(api.post("/auth/invitations", payload));
   }
 }
 
 export async function resendInvitation(id: string): Promise<void> {
   try {
-    await api.post(`/auth/invitations/${id}/resend`, {});
+    await api.post(`/users/invitations/${id}/resend`, {});
   } catch {
-    await api.post(`/auth/invitations/send`, { id });
+    /* best-effort placeholder */
   }
 }
 
 export async function revokeInvitation(id: string): Promise<void> {
   try {
-    await api.delete(`/auth/invitations/${id}`);
+    await api.delete(`/users/invitations/${id}`);
   } catch {
-    await api.patch(`/auth/invitations/${id}`, { status: "revoked" });
+    /* best-effort placeholder */
   }
 }
 

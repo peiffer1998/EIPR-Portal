@@ -7,14 +7,15 @@ from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Final
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, String, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus
 from app.models.owner_profile import OwnerProfile
 from app.models.pet import Pet
 from app.models.reservation import Reservation
+from app.models.user import User
 from app.schemas.invoice import InvoiceItemCreate
 from app.services import invoice_service
 
@@ -57,6 +58,75 @@ async def list_invoices(
     stmt = stmt.options(selectinload(Invoice.items)).order_by(Invoice.created_at.desc())
     result = await session.execute(stmt)
     return list(result.scalars().unique().all())
+
+
+async def search_invoices(
+    session: AsyncSession,
+    *,
+    account_id: uuid.UUID,
+    status: InvoiceStatus | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    query: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[list[Invoice], int]:
+    """Return paginated invoices with optional filters applied."""
+
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
+
+    owner_user = aliased(User)
+
+    base_stmt: Select[tuple[Invoice]] = (
+        select(Invoice)
+        .outerjoin(Reservation, Invoice.reservation_id == Reservation.id)
+        .outerjoin(Pet, Reservation.pet_id == Pet.id)
+        .outerjoin(OwnerProfile, Pet.owner_id == OwnerProfile.id)
+        .outerjoin(owner_user, OwnerProfile.user_id == owner_user.id)
+        .where(Invoice.account_id == account_id)
+    )
+
+    if status is not None:
+        base_stmt = base_stmt.where(Invoice.status == status)
+    if date_from is not None:
+        base_stmt = base_stmt.where(Invoice.created_at >= date_from)
+    if date_to is not None:
+        base_stmt = base_stmt.where(Invoice.created_at <= date_to)
+    if query:
+        pattern = f"%{query}%"
+        base_stmt = base_stmt.where(
+            or_(
+                cast(Invoice.id, String).ilike(pattern),
+                cast(Invoice.reservation_id, String).ilike(pattern),
+                owner_user.first_name.ilike(pattern),
+                owner_user.last_name.ilike(pattern),
+                owner_user.email.ilike(pattern),
+                owner_user.phone_number.ilike(pattern),
+                Pet.name.ilike(pattern),
+            )
+        )
+
+    count_stmt = base_stmt.with_only_columns(
+        func.count(func.distinct(Invoice.id))
+    ).order_by(None)
+    total = (await session.execute(count_stmt)).scalar_one()
+
+    results_stmt = (
+        base_stmt.options(
+            selectinload(Invoice.reservation)
+            .selectinload(Reservation.pet)
+            .selectinload(Pet.owner)
+            .selectinload(OwnerProfile.user)
+        )
+        .order_by(Invoice.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+
+    result = await session.execute(results_stmt)
+    invoices = list(result.scalars().unique().all())
+    return invoices, int(total)
 
 
 async def get_invoice(

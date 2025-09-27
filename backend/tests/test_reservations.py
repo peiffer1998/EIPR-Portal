@@ -87,9 +87,30 @@ async def test_reservation_lifecycle(app_context: dict[str, Any]) -> None:
     reservation = create_resp.json()
     reservation_id = reservation["id"]
     assert reservation["status"] == "requested"
+    assert reservation["pet"]["id"] == ids["pet_id"]
+    assert reservation["pet"]["name"].endswith("Pet")
     assert reservation["check_in_at"] is None
     assert reservation["check_out_at"] is None
     assert reservation["kennel_id"] is None
+
+    # Assign a run
+    run_uuid = str(uuid.uuid4())
+    move_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/move-run",
+        json={"run_id": run_uuid},
+        headers=headers,
+    )
+    assert move_resp.status_code == 200
+    assert move_resp.json()["kennel_id"] == run_uuid
+
+    # Clearing the run
+    clear_resp = await client.post(
+        f"/api/v1/reservations/{reservation_id}/move-run",
+        json={"run_id": None},
+        headers=headers,
+    )
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["kennel_id"] is None
 
     # Accept the reservation request
     accept_resp = await client.patch(
@@ -149,7 +170,11 @@ async def test_reservation_lifecycle(app_context: dict[str, Any]) -> None:
 
     list_resp = await client.get("/api/v1/reservations", headers=headers)
     assert list_resp.status_code == 200
-    assert any(item["id"] == reservation_id for item in list_resp.json())
+    body = list_resp.json()
+    assert any(item["id"] == reservation_id for item in body)
+    assert any(
+        item.get("pet", {}).get("name") == reservation["pet"]["name"] for item in body
+    )
 
     delete_resp = await client.delete(
         f"/api/v1/reservations/{reservation_id}", headers=headers

@@ -11,6 +11,7 @@ from httpx import AsyncClient
 from app.db.session import get_sessionmaker
 from app.models import Account, OwnerProfile, User, UserRole, UserStatus
 from app.core.security import get_password_hash
+from app.services import note_buffer
 
 pytestmark = pytest.mark.asyncio
 
@@ -27,6 +28,7 @@ async def _authenticate(client: AsyncClient, email: str, password: str) -> str:
 
 
 async def test_owner_pet_lifecycle(app_context: dict[str, Any]) -> None:
+    note_buffer.clear_all()
     client: AsyncClient = app_context["client"]  # type: ignore[assignment]
     manager_email = app_context["manager_email"]
     manager_password = app_context["manager_password"]
@@ -55,6 +57,14 @@ async def test_owner_pet_lifecycle(app_context: dict[str, Any]) -> None:
     assert list_resp.status_code == 200
     assert any(item["id"] == owner_id for item in list_resp.json())
 
+    search_resp = await client.get(
+        "/api/v1/owners",
+        params={"q": "Alex"},
+        headers=headers,
+    )
+    assert search_resp.status_code == 200
+    assert any(item["id"] == owner_id for item in search_resp.json())
+
     pet_payload = {
         "owner_id": owner_id,
         "home_location_id": location_id,
@@ -72,10 +82,48 @@ async def test_owner_pet_lifecycle(app_context: dict[str, Any]) -> None:
     pet_body = create_pet_resp.json()
     assert pet_body["owner_id"] == owner_id
     assert pet_body["name"] == "Bailey"
+    assert pet_body["owner"]["id"] == owner_id
+    assert pet_body["owner"]["email"] == owner_payload["email"]
 
     pets_list = await client.get("/api/v1/pets", headers=headers)
     assert pets_list.status_code == 200
-    assert any(item["id"] == pet_body["id"] for item in pets_list.json())
+    pets_payload = pets_list.json()
+    assert any(item["id"] == pet_body["id"] for item in pets_payload)
+    assert any(
+        item.get("owner", {}).get("email") == owner_payload["email"]
+        for item in pets_payload
+    )
+
+    owner_filtered = await client.get(
+        f"/api/v1/pets?owner_id={owner_id}", headers=headers
+    )
+    assert owner_filtered.status_code == 200
+    filtered_payload = owner_filtered.json()
+    assert len(filtered_payload) >= 1
+    assert all(item["owner_id"] == owner_id for item in filtered_payload)
+
+    search_resp = await client.get("/api/v1/pets?q=Bailey", headers=headers)
+    assert search_resp.status_code == 200
+    assert any(item["id"] == pet_body["id"] for item in search_resp.json())
+
+    # Notes API placeholders
+    add_note_resp = await client.post(
+        f"/api/v1/pets/{pet_body['id']}/notes",
+        json={"text": "Great temperament"},
+        headers=headers,
+    )
+    assert add_note_resp.status_code == 201
+    notes_resp = await client.get(
+        f"/api/v1/pets/{pet_body['id']}/notes", headers=headers
+    )
+    assert notes_resp.status_code == 200
+    assert any(note["text"] == "Great temperament" for note in notes_resp.json())
+
+    # Vaccination alias should respond
+    vacc_resp = await client.get(
+        f"/api/v1/pets/{pet_body['id']}/vaccinations", headers=headers
+    )
+    assert vacc_resp.status_code == 200
 
 
 async def test_owner_access_is_account_scoped(

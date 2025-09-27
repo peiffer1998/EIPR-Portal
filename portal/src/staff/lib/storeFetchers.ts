@@ -4,36 +4,50 @@ const ok = <T>(promise: Promise<{ data: T }>): Promise<T> => promise.then((respo
 
 export async function listPackages(params?: Record<string, unknown>) {
   try {
-    return await ok<any[]>(api.get("/store/packages", { params }));
+    const data = await ok<any[]>(api.get('/store/package-types', { params }));
+    return data.map((pkg: any) => ({
+      ...pkg,
+      qty: pkg.credits_per_package ?? pkg.qty ?? pkg.quantity ?? 1,
+      price: pkg.price ?? 0,
+    }));
   } catch {
-    return [];
+    try {
+      return await ok<any[]>(api.get('/store/packages', { params }));
+    } catch {
+      return [];
+    }
   }
 }
 
 export async function sellPackage(ownerId: string, packageId: string, qty: number, priceOverride?: number) {
   try {
     return await ok<any>(
-      api.post("/store/packages/sell", { owner_id: ownerId, package_id: packageId, qty, price_override: priceOverride }),
+      api.post("/store/packages/purchase", { owner_id: ownerId, package_type_id: packageId, quantity: qty, price_override: priceOverride }),
     );
   } catch {
-    return ok<any>(api.post("/packages/sell", { owner_id: ownerId, package_id: packageId, qty, price_override: priceOverride }));
+    return ok<any>(api.post("/packages", { owner_id: ownerId, package_type_id: packageId, quantity: qty, price_override: priceOverride }));
   }
 }
 
 export async function listOwnerPackages(ownerId: string) {
   try {
-    return await ok<any[]>(api.get(`/owners/${ownerId}/packages`));
+    const rows = await ok<any[]>(api.get(`/owners/${ownerId}/packages`));
+    return rows.map((row) => ({
+      id: row.owner_package_id ?? row.package_type_id ?? row.id,
+      package_type_id: row.package_type_id ?? row.id,
+      name: row.name ?? row.package?.name ?? row.package_name ?? row.package_type_id,
+      remaining: row.remaining ?? row.balance ?? row.credits ?? 0,
+      applies_to: row.applies_to ?? row.package?.applies_to ?? row.applies_to_label,
+      status: row.status ?? (Number(row.remaining ?? row.balance ?? 0) > 0 ? 'ACTIVE' : 'DEPLETED'),
+    }));
   } catch {
     return ok<any[]>(api.get("/packages", { params: { owner_id: ownerId, limit: 200 } }));
   }
 }
 
 export async function consumeOwnerPackage(ownerPackageId: string, amount: number) {
-  try {
-    return await ok<any>(api.post(`/store/packages/${ownerPackageId}/consume`, { amount }));
-  } catch {
-    return ok<any>(api.post(`/packages/${ownerPackageId}/consume`, { amount }));
-  }
+  if (!ownerPackageId || amount <= 0) return { ok: false };
+  return { ok: false } as any;
 }
 
 export async function listMemberships(params?: Record<string, unknown>) {

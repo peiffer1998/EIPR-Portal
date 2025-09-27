@@ -67,6 +67,22 @@ class OwnerRead(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class OwnerNoteCreate(BaseModel):
+    """Payload for creating an owner note."""
+
+    text: str = Field(min_length=1, max_length=2000)
+
+
+class OwnerNoteRead(BaseModel):
+    """Serialized owner note."""
+
+    id: uuid.UUID
+    owner_id: uuid.UUID
+    text: str
+    created_at: datetime
+    author_id: uuid.UUID | None = None
+
+
 class OwnerReservationRequest(BaseModel):
     """Owner-initiated reservation payload."""
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, datetime, time, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -15,8 +16,10 @@ from app.schemas.invoice import (
     InvoiceApplyPromotionRequest,
     InvoiceFromReservationRequest,
     InvoiceItemCreate,
+    InvoiceListResponse,
     InvoicePaymentRequest,
     InvoiceRead,
+    InvoiceSummaryRead,
     InvoiceTotalsRead,
 )
 from app.services import billing_service, invoice_service, notification_service
@@ -31,17 +34,73 @@ def _assert_staff(user: User) -> None:
         )
 
 
-@router.get("", response_model=list[InvoiceRead], summary="List invoices")
+@router.get("", response_model=InvoiceListResponse, summary="List invoices")
 async def list_invoices(
     session: Annotated[AsyncSession, Depends(deps.get_db_session)],
     current_user: Annotated[User, Depends(deps.get_current_active_user)],
     status_filter: InvoiceStatus | None = Query(default=None, alias="status"),
-) -> list[InvoiceRead]:
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    search: str | None = Query(default=None, alias="q"),
+) -> InvoiceListResponse:
     _assert_staff(current_user)
-    invoices = await billing_service.list_invoices(
-        session, account_id=current_user.account_id, status=status_filter
+
+    start_dt: datetime | None = None
+    end_dt: datetime | None = None
+    if date_from is not None:
+        start_dt = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+    if date_to is not None:
+        end_dt = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+
+    invoices, total = await billing_service.search_invoices(
+        session,
+        account_id=current_user.account_id,
+        status=status_filter,
+        date_from=start_dt,
+        date_to=end_dt,
+        query=search.strip() if search else None,
+        limit=limit,
+        offset=offset,
     )
-    return [InvoiceRead.model_validate(inv) for inv in invoices]
+
+    summaries: list[InvoiceSummaryRead] = []
+    for inv in invoices:
+        reservation = inv.reservation
+        pet = getattr(reservation, "pet", None)
+        owner = getattr(pet, "owner", None) if pet else None
+        owner_user = getattr(owner, "user", None) if owner else None
+        owner_name = None
+        if owner_user is not None:
+            owner_name = " ".join(
+                filter(
+                    None,
+                    [owner_user.first_name, owner_user.last_name],
+                )
+            )
+            owner_name = owner_name or owner_user.email
+
+        summaries.append(
+            InvoiceSummaryRead(
+                id=inv.id,
+                status=inv.status,
+                total=inv.total,
+                created_at=inv.created_at,
+                reservation_id=inv.reservation_id,
+                owner_id=owner.id if owner else None,
+                owner_name=owner_name,
+                pet_id=pet.id if pet else None,
+                pet_name=pet.name if pet else None,
+            )
+        )
+
+    return InvoiceListResponse(
+        items=summaries,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead, summary="Get invoice")

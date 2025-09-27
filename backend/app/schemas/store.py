@@ -12,6 +12,26 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.store import PackageApplicationType
 
 
+class MembershipRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    billing_period: str | None = None
+    price: Decimal | None = None
+    active: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MembershipEnrollRequest(BaseModel):
+    owner_id: uuid.UUID
+    membership_id: uuid.UUID
+    start_date: date
+
+
+class MembershipActionResponse(BaseModel):
+    status: str
+
+
 class PackageTypeBase(BaseModel):
     name: str
     applies_to: PackageApplicationType

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +18,7 @@ from app.models.user import User, UserRole
 from app.schemas.invoice import InvoiceRead
 from app.schemas.payment import PaymentIntentConfirm
 from app.schemas.payments import (
+    PaymentTransactionRead,
     PaymentIntentCreateRequest,
     PaymentIntentCreateResponse,
     PaymentRefundRequest,
@@ -25,6 +27,38 @@ from app.schemas.payments import (
 from app.services import billing_service, notification_service, payments_service
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+@router.get(
+    "",
+    response_model=list[PaymentTransactionRead],
+    summary="List payment transactions",
+)
+async def list_payments(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    skip: int = 0,
+    limit: int = 200,
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    provider: str | None = Query(default=None),
+) -> list[PaymentTransactionRead]:
+    _assert_staff(current_user)
+    limit = min(max(limit, 1), 500)
+    stmt = select(PaymentTransaction).where(
+        PaymentTransaction.account_id == current_user.account_id
+    )
+    if provider:
+        stmt = stmt.where(PaymentTransaction.provider == provider)
+    if date_from is not None:
+        start_dt = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
+        stmt = stmt.where(PaymentTransaction.created_at >= start_dt)
+    if date_to is not None:
+        end_dt = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
+        stmt = stmt.where(PaymentTransaction.created_at <= end_dt)
+    stmt = stmt.order_by(PaymentTransaction.created_at.desc()).offset(skip).limit(limit)
+    transactions = (await session.execute(stmt)).scalars().unique().all()
+    return [PaymentTransactionRead.model_validate(txn) for txn in transactions]
 
 
 def _assert_staff(user: User) -> None:

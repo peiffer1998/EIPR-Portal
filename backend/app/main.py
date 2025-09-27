@@ -19,9 +19,13 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-_ALLOWED_ORIGINS = [origin for origin in settings.cors_allowlist if origin]
-if not _ALLOWED_ORIGINS:
-    _ALLOWED_ORIGINS = [origin for origin in settings.cors_allow_origins if origin]
+_ALLOWED_ORIGINS: list[str] = []
+for origin in settings.cors_allowlist:
+    if origin and origin not in _ALLOWED_ORIGINS:
+        _ALLOWED_ORIGINS.append(origin)
+for origin in settings.cors_allow_origins:
+    if origin and origin not in _ALLOWED_ORIGINS:
+        _ALLOWED_ORIGINS.append(origin)
 if not _ALLOWED_ORIGINS:
     _ALLOWED_ORIGINS = [
         "http://localhost:5173",
@@ -68,8 +72,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_ALLOWED_ORIGINS,
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+    allow_methods=["*"],
+    allow_headers=["*"],
     expose_headers=["X-Request-ID"],
 )
 app.add_middleware(CorrelationIdMiddleware, header_name="X-Request-ID")

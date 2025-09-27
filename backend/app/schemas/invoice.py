@@ -87,3 +87,26 @@ class InvoiceTotalsRead(BaseModel):
     total_amount: Decimal
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class InvoiceSummaryRead(BaseModel):
+    """Lightweight representation for invoice listing."""
+
+    id: uuid.UUID
+    status: InvoiceStatus
+    total: Decimal
+    created_at: datetime
+    reservation_id: uuid.UUID | None = None
+    owner_id: uuid.UUID | None = None
+    owner_name: str | None = None
+    pet_id: uuid.UUID | None = None
+    pet_name: str | None = None
+
+
+class InvoiceListResponse(BaseModel):
+    """Paginated invoice listing payload."""
+
+    items: list[InvoiceSummaryRead]
+    total: int
+    limit: int
+    offset: int

@@ -27,6 +27,8 @@ export default function StaffLogin() {
       >
         <h1 className="text-2xl font-semibold text-slate-900">Staff Login</h1>
         <input
+          type="email"
+          autoComplete="username"
           className="border rounded px-3 py-2"
           placeholder="Email"
           value={email}
@@ -34,6 +36,7 @@ export default function StaffLogin() {
         />
         <input
           type="password"
+          autoComplete="current-password"
           className="border rounded px-3 py-2"
           placeholder="Password"
           value={password}

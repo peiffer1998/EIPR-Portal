@@ -85,7 +85,7 @@ export default function StorePackages() {
           ]}
           rows={ownerPackages.map((entry) => ({
             id: entry.id,
-            package: entry.package?.name ?? entry.package_name ?? entry.package_id,
+            package: entry.name ?? entry.package?.name ?? entry.package_name ?? entry.package_type_id,
             remaining: entry.remaining ?? entry.balance ?? 0,
             status: entry.status ?? "ACTIVE",
           }))}

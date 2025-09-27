@@ -37,12 +37,39 @@ async def list_owners(
     account_id: uuid.UUID,
     skip: int = 0,
     limit: int = 50,
+    search: str | None = None,
 ) -> Sequence[OwnerProfile]:
     """Return paginated owners for an account."""
     stmt = _base_owner_query(account_id)
-    stmt = stmt.offset(skip).limit(limit)
+    term = (search or "").strip()
+    fetch_limit = limit
+    if term:
+        fetch_limit = min(max(limit, 100), 500)
+    stmt = stmt.offset(skip).limit(fetch_limit)
     result = await session.execute(stmt)
-    return result.scalars().unique().all()
+    owners = result.scalars().unique().all()
+
+    if term:
+        lowered = term.lower()
+        filtered: list[OwnerProfile] = []
+        for owner in owners:
+            user = owner.user
+            haystack = " ".join(
+                filter(
+                    None,
+                    [
+                        user.first_name,
+                        user.last_name,
+                        user.email,
+                        user.phone_number,
+                    ],
+                )
+            ).lower()
+            if lowered in haystack:
+                filtered.append(owner)
+        owners = filtered
+
+    return owners[:limit]
 
 
 async def get_owner(

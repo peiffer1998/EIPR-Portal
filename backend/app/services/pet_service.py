@@ -6,7 +6,7 @@ import uuid
 from datetime import date
 from typing import Sequence, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.sql import Select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,9 +44,26 @@ async def list_pets(
     account_id: uuid.UUID,
     skip: int = 0,
     limit: int = 50,
+    owner_id: uuid.UUID | None = None,
+    search: str | None = None,
 ) -> Sequence[Pet]:
     """Return paginated pets for an account."""
-    stmt = _base_pet_query(account_id).offset(skip).limit(limit)
+    stmt = _base_pet_query(account_id)
+    if owner_id is not None:
+        stmt = stmt.where(Pet.owner_id == owner_id)
+    if search:
+        pattern = f"%{search.lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Pet.name).like(pattern),
+                func.lower(User.first_name).like(pattern),
+                func.lower(User.last_name).like(pattern),
+                func.lower(User.email).like(pattern),
+                func.lower(func.coalesce(User.phone_number, "")).like(pattern),
+                func.lower(func.coalesce(Pet.breed, "")).like(pattern),
+            )
+        )
+    stmt = stmt.offset(skip).limit(limit)
     result = await session.execute(stmt)
     return result.scalars().unique().all()
 

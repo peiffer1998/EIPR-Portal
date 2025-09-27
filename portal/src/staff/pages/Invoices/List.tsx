@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
@@ -15,20 +15,34 @@ export default function InvoicesList() {
   const [to, setTo] = useState<string>(new Date().toISOString().slice(0, 10));
   const [status, setStatus] = useState<string>("");
   const [search, setSearch] = useState<string>("");
+  const [page, setPage] = useState<number>(0);
+  const pageSize = 50;
+
+  useEffect(() => {
+    setPage(0);
+  }, [from, to, status, search]);
 
   const invoicesQuery = useQuery({
-    queryKey: ["invoices", from, to, status, search],
+    queryKey: ["invoices", from, to, status, search, page, pageSize],
     queryFn: () =>
       listInvoices({
         date_from: from,
         date_to: to,
         status: status || undefined,
         q: search || undefined,
-        limit: 200,
+        limit: pageSize,
+        offset: page * pageSize,
       }),
+    keepPreviousData: true,
   });
 
-  const invoices = invoicesQuery.data ?? [];
+  const invoices = invoicesQuery.data?.items ?? [];
+  const total = invoicesQuery.data?.total ?? 0;
+  const currentOffset = invoicesQuery.data?.offset ?? page * pageSize;
+  const showingStart = invoices.length ? currentOffset + 1 : 0;
+  const showingEnd = invoices.length ? currentOffset + invoices.length : 0;
+  const canPrev = page > 0 && !invoicesQuery.isFetching;
+  const canNext = currentOffset + invoices.length < total && !invoicesQuery.isFetching;
 
   return (
     <Page>
@@ -72,6 +86,33 @@ export default function InvoicesList() {
       </Card>
 
       <Card className="overflow-auto">
+        <div className="flex items-center justify-between px-3 py-2 text-sm text-slate-600">
+          <span>
+            {total
+              ? `Showing ${showingStart}-${showingEnd} of ${total}`
+              : invoicesQuery.isLoading
+                ? "Loading…"
+                : "No invoices found"}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!canPrev}
+              onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!canNext}
+              onClick={() => setPage((prev) => prev + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
         <Table>
           <thead>
             <tr className="text-left text-slate-500">

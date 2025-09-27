@@ -102,6 +102,17 @@ async def test_store_staff_flow(app_context: dict[str, Any]) -> None:
     store_invoice_id = purchase_resp.json()["invoice_id"]
     assert store_invoice_id
 
+    owner_packages_resp = await client.get(
+        f"/api/v1/owners/{owner_id}/packages",
+        headers=headers,
+    )
+    assert owner_packages_resp.status_code == 200
+    owner_packages = owner_packages_resp.json()
+    assert any(
+        pkg["package_type_id"] == package_type_id and pkg["remaining"] >= 3
+        for pkg in owner_packages
+    )
+
     start_at = datetime.now(timezone.utc) + timedelta(days=1)
     end_at = start_at + timedelta(days=1)
     reservation_resp = await client.post(
@@ -133,6 +144,17 @@ async def test_store_staff_flow(app_context: dict[str, Any]) -> None:
     assert apply_package_resp.status_code == 200
     applied_amount = Decimal(apply_package_resp.json()["applied_amount"])
     assert applied_amount > Decimal("0")
+
+    post_consume_resp = await client.get(
+        f"/api/v1/owners/{owner_id}/packages",
+        headers=headers,
+    )
+    assert post_consume_resp.status_code == 200
+    post_consumption = post_consume_resp.json()
+    assert any(
+        pkg["package_type_id"] == package_type_id and pkg["remaining"] < 3
+        for pkg in post_consumption
+    )
 
     issue_gc_resp = await client.post(
         "/api/v1/store/gift-certificates/issue",

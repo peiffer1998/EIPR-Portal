@@ -28,6 +28,7 @@ from . import (
     portal_store,
     report_cards,
     packages,
+    runs,
     store,
     pets,
     payments,
@@ -43,6 +44,7 @@ from . import (
     tips,
     commissions,
     payroll,
+    telemetry,
     users,
     waitlist,
 )
@@ -90,6 +92,8 @@ router.include_router(storage.router, tags=["storage"])
 router.include_router(
     report_cards.router, prefix="/report-cards", tags=["report-cards"]
 )
+# Lodging support
+router.include_router(runs.router, tags=["runs"])
 # BEGIN OPS_P5 ROUTES
 router.include_router(feeding_board.router, prefix="/feeding", tags=["feeding"])
 router.include_router(
@@ -98,6 +102,7 @@ router.include_router(
 router.include_router(run_cards.router, tags=["run-cards"])
 # END OPS_P5 ROUTES
 router.include_router(timeclock.router, tags=["timeclock"])
+router.include_router(telemetry.router)
 router.include_router(tips.router, tags=["tips"])
 router.include_router(commissions.router, tags=["commissions"])
 router.include_router(payroll.router, tags=["payroll"])

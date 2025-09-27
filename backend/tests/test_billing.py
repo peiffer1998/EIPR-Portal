@@ -29,18 +29,24 @@ async def _create_owner_pet_reservation(
     client: AsyncClient,
     headers: dict[str, str],
     location_id: str,
+    *,
+    owner_email: str | None = None,
+    owner_first: str = "Bill",
+    owner_last: str = "Payer",
+    pet_name: str = "BillingDog",
+    start_offset_days: int = 1,
 ) -> tuple[str, str]:
     owner_resp = await client.post(
         "/api/v1/owners",
         json={
-            "first_name": "Bill",
-            "last_name": "Payer",
-            "email": "bill.payer@example.com",
+            "first_name": owner_first,
+            "last_name": owner_last,
+            "email": owner_email or f"bill.payer+{uuid.uuid4().hex}@example.com",
             "password": "StrongPass1!",
         },
         headers=headers,
     )
-    assert owner_resp.status_code == 201
+    assert owner_resp.status_code == 201, owner_resp.json()
     owner_id = owner_resp.json()["id"]
 
     pet_resp = await client.post(
@@ -48,15 +54,15 @@ async def _create_owner_pet_reservation(
         json={
             "owner_id": owner_id,
             "home_location_id": location_id,
-            "name": "BillingDog",
+            "name": pet_name,
             "pet_type": "dog",
         },
         headers=headers,
     )
-    assert pet_resp.status_code == 201
+    assert pet_resp.status_code == 201, pet_resp.json()
     pet_id = pet_resp.json()["id"]
 
-    start_at = datetime.now(timezone.utc) + timedelta(days=1)
+    start_at = datetime.now(timezone.utc) + timedelta(days=start_offset_days)
     end_at = start_at + timedelta(days=2)
     reservation_resp = await client.post(
         "/api/v1/reservations",
@@ -70,7 +76,7 @@ async def _create_owner_pet_reservation(
         },
         headers=headers,
     )
-    assert reservation_resp.status_code == 201
+    assert reservation_resp.status_code == 201, reservation_resp.json()
     reservation_id = reservation_resp.json()["id"]
     return reservation_id, pet_id
 
@@ -105,7 +111,9 @@ async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
 
     list_resp = await client.get("/api/v1/invoices", headers=headers)
     assert list_resp.status_code == 200
-    assert any(item["id"] == invoice_id for item in list_resp.json())
+    payload = list_resp.json()
+    assert payload["total"] >= 1
+    assert any(item["id"] == invoice_id for item in payload["items"])
 
     add_item_resp = await client.post(
         f"/api/v1/invoices/{invoice_id}/items",
@@ -134,6 +142,64 @@ async def test_invoice_lifecycle(app_context: dict[str, Any]) -> None:
         headers=headers,
     )
     assert duplicate_resp.status_code == 400
+
+
+async def test_invoice_list_pagination_and_filters(app_context: dict[str, Any]) -> None:
+    client: AsyncClient = app_context["client"]  # type: ignore[assignment]
+    manager_email = app_context["manager_email"]
+    manager_password = app_context["manager_password"]
+    location_id = str(app_context["location_id"])
+
+    token = await _authenticate(client, manager_email, manager_password)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    created_ids: list[str] = []
+    for idx in range(3):
+        reservation_id, _ = await _create_owner_pet_reservation(
+            client,
+            headers,
+            location_id,
+            owner_email=f"payer{idx}+{uuid.uuid4().hex}@example.com",
+            owner_first=f"Owner{idx}",
+            owner_last="Demo",
+            pet_name=f"Pet{idx}",
+            start_offset_days=1 + idx * 3,
+        )
+        invoice_resp = await client.post(
+            f"/api/v1/reservations/{reservation_id}/invoice",
+            headers=headers,
+        )
+        assert invoice_resp.status_code == 200
+        created_ids.append(invoice_resp.json()["id"])
+
+    list_resp = await client.get(
+        "/api/v1/invoices", headers=headers, params={"limit": 1}
+    )
+    assert list_resp.status_code == 200
+    payload = list_resp.json()
+    assert payload["limit"] == 1
+    assert payload["total"] >= 3
+    assert len(payload["items"]) == 1
+    first_page_id = payload["items"][0]["id"]
+
+    second_resp = await client.get(
+        "/api/v1/invoices", headers=headers, params={"limit": 1, "offset": 1}
+    )
+    assert second_resp.status_code == 200
+    second_payload = second_resp.json()
+    assert second_payload["limit"] == 1
+    assert len(second_payload["items"]) == 1
+    assert second_payload["items"][0]["id"] != first_page_id
+
+    search_resp = await client.get(
+        "/api/v1/invoices",
+        headers=headers,
+        params={"q": "Pet1"},
+    )
+    assert search_resp.status_code == 200
+    search_payload = search_resp.json()
+    assert search_payload["total"] >= 1
+    assert any(item.get("pet_name") == "Pet1" for item in search_payload["items"])
 
 
 async def test_invoice_account_isolation(

@@ -21,6 +21,9 @@ from app.models import (
 )
 from app.models.user import User, UserRole
 from app.schemas.store import (
+    MembershipActionResponse,
+    MembershipEnrollRequest,
+    MembershipRead,
     GiftCertificateIssueRequest,
     GiftCertificateRead,
     GiftCertificateRedeemRequest,
@@ -94,6 +97,51 @@ async def _get_invoice_owner_id(
     return owner.id
 
 
+@router.get(
+    "/memberships",
+    response_model=list[MembershipRead],
+    summary="List memberships",
+)
+async def list_memberships(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> list[MembershipRead]:
+    """Return configured memberships (placeholder until backend finalized)."""
+    _require_staff(current_user)
+    return []
+
+
+@router.post(
+    "/memberships/enroll",
+    response_model=MembershipActionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Enroll an owner in a membership",
+)
+async def enroll_membership(
+    payload: MembershipEnrollRequest,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> MembershipActionResponse:
+    """Placeholder enrollment endpoint; returns acknowledgement without persistence."""
+    _require_staff(current_user)
+    return MembershipActionResponse(status="pending")
+
+
+@router.post(
+    "/memberships/{owner_membership_id}/cancel",
+    response_model=MembershipActionResponse,
+    summary="Cancel an owner membership",
+)
+async def cancel_membership(
+    owner_membership_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+) -> MembershipActionResponse:
+    """Placeholder cancel endpoint; returns acknowledgement without persistence."""
+    _require_staff(current_user)
+    return MembershipActionResponse(status="canceled")
+
+
 @router.post(
     "/package-types",
     response_model=PackageTypeRead,
@@ -140,6 +188,24 @@ async def list_package_types(
         .all()
     )
     return [PackageTypeRead.model_validate(pkg) for pkg in packages]
+
+
+@router.get(
+    "/packages",
+    response_model=list[PackageTypeRead],
+    summary="List package types (legacy path)",
+)
+async def list_packages_legacy(
+    session: Annotated[AsyncSession, Depends(deps.get_db_session)],
+    current_user: Annotated[User, Depends(deps.get_current_active_user)],
+    active: bool | None = Query(default=None),
+) -> list[PackageTypeRead]:
+    """Legacy alias for listing package types."""
+    return await list_package_types(
+        session=session,
+        current_user=current_user,
+        active=active,
+    )
 
 
 @router.patch(

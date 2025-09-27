@@ -32,14 +32,17 @@ export default function ReservationsList() {
               </tr>
             </thead>
             <tbody>
-              {(reservations.data || []).map((r: any) => (
-                <tr key={r.id} className="border-t">
-                  <td className="px-3 py-2">{r.pet_id}</td>
-                  <td className="px-3 py-2">{r.reservation_type}</td>
-                  <td className="px-3 py-2">{new Date(r.start_at).toLocaleString()}</td>
-                  <td className="px-3 py-2">{new Date(r.end_at).toLocaleString()}</td>
-                </tr>
-              ))}
+              {(reservations.data || []).map((r: any) => {
+                const petLabel = r.pet?.name ?? r.pet_name ?? r.pet_id;
+                return (
+                  <tr key={r.id} className="border-t">
+                    <td className="px-3 py-2">{petLabel}</td>
+                    <td className="px-3 py-2 capitalize">{r.reservation_type}</td>
+                    <td className="px-3 py-2">{new Date(r.start_at).toLocaleString()}</td>
+                    <td className="px-3 py-2">{new Date(r.end_at).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         </div>
