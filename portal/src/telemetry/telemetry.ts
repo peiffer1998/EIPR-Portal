@@ -1,4 +1,6 @@
-import api from "../lib/api";
+import type { AxiosError } from 'axios';
+
+import api from '../lib/api';
 
 type EventBase = {
   ts: number;
@@ -27,12 +29,33 @@ export function getBuffer(): EventBase[] {
 export async function flush(): Promise<void> {
   if (!BUFFER.length) return;
   const payload = { events: BUFFER.slice(-50) };
+
+  const tryFallback = async () => {
+    const base = api.defaults.baseURL ?? '';
+    const root = base.replace(/\/$/, '').replace(/\/(api|api\/v1)$/i, '');
+    if (!root) return;
+    await api.post('/api/v1/telemetry', payload, { baseURL: root });
+  };
+
   try {
-    await api
-      .post("/telemetry", payload)
-      .catch(async () => api.post("/api/v1/telemetry", payload));
+    await api.post('/telemetry', payload);
   } catch (error) {
-    console.warn("flush telemetry failed", error);
+    const axiosError = error as AxiosError | undefined;
+    const status = axiosError?.response?.status;
+    if (status === 404) {
+      try {
+        await tryFallback();
+      } catch {
+        /* swallow missing telemetry endpoint */
+      }
+      return;
+    }
+
+    try {
+      await tryFallback();
+    } catch (fallbackError) {
+      console.warn('flush telemetry failed', fallbackError);
+    }
   }
 }
 
